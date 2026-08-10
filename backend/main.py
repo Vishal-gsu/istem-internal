@@ -30,9 +30,12 @@ oauth.register(
 )
 
 # Setup CORS to allow the Next.js frontend to connect
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+allowed_origins = [frontend_url, "http://localhost:3000", "http://127.0.0.1:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -75,7 +78,8 @@ def health_check():
 
 @app.get("/api/auth/login")
 async def login(request: Request):
-    redirect_uri = "http://localhost:3000/api/auth/callback"
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    redirect_uri = f"{frontend_url}/api/auth/callback"
     return await oauth.microsoft.authorize_redirect(request, redirect_uri)
 
 @app.get("/api/auth/callback")
@@ -91,7 +95,8 @@ async def auth_callback(request: Request):
             "token": token.get("access_token")
         }
         request.session["session_id"] = session_id
-    return RedirectResponse(url="http://localhost:3000")
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    return RedirectResponse(url=frontend_url)
 
 @app.get("/api/auth/logout")
 async def logout(request: Request):
@@ -100,7 +105,8 @@ async def logout(request: Request):
     if session_id and session_id in server_sessions:
         del server_sessions[session_id]
     request.session.pop("session_id", None)
-    return RedirectResponse(url="http://localhost:3000")
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    return RedirectResponse(url=frontend_url)
 
 @app.get("/api/me")
 def get_me(user: dict = Depends(get_current_user)):
