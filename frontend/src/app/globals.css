@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fef6f1; /* rust-50 */
+  --foreground: #000000;
+  
+  --rust-50: #fef6f1;
+  --rust-100: #fcebe1;
+  --rust-200: #f8d3bc;
+  --rust-300: #f3b18a;
+  --rust-400: #ef8b52;
+  --rust-500: #e05c1b;
+  --rust-600: #ca4613;
+  --rust-700: #a73312;
+  --rust-800: #852b14;
+  --rust-900: #6b2513;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-rust-50: var(--rust-50);
+  --color-rust-100: var(--rust-100);
+  --color-rust-200: var(--rust-200);
+  --color-rust-300: var(--rust-300);
+  --color-rust-400: var(--rust-400);
+  --color-rust-500: var(--rust-500);
+  --color-rust-600: var(--rust-600);
+  --color-rust-700: var(--rust-700);
+  --color-rust-800: var(--rust-800);
+  --color-rust-900: var(--rust-900);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* 
+ * FullCalendar Custom Premium Theme Overrides 
+ * Forces the generic calendar to match our strict Rust UI.
+ */
+.custom-calendar-wrapper {
+  --fc-border-color: #e2e8f0;       /* slate-200 */
+  --fc-button-text-color: #475569;  /* slate-600 */
+  --fc-button-bg-color: #f8fafc;    /* slate-50 */
+  --fc-button-border-color: #cbd5e1;/* slate-300 */
+  --fc-button-hover-bg-color: #f1f5f9; /* slate-100 */
+  --fc-button-hover-border-color: #94a3b8; /* slate-400 */
+  --fc-button-active-bg-color: var(--rust-50); 
+  --fc-button-active-border-color: var(--rust-500); 
+  --fc-button-active-text-color: var(--rust-700); 
+  --fc-event-bg-color: var(--rust-500);
+  --fc-event-border-color: var(--rust-600);
+  --fc-today-bg-color: var(--rust-50);     /* Very subtle highlight for today */
+  --fc-neutral-bg-color: #ffffff;
+  
+  font-family: inherit;
+}
+
+.custom-calendar-wrapper .fc-theme-standard th {
+  padding: 8px 0;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b; /* slate-500 */
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.custom-calendar-wrapper .fc-toolbar-title {
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: #0f172a; /* slate-900 */
+}
+
+.custom-calendar-wrapper .fc .fc-button-primary {
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  transition: all 0.2s;
+  text-transform: capitalize;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.custom-calendar-wrapper .fc .fc-button-primary:not(:disabled).fc-button-active {
+  background-color: var(--fc-button-active-bg-color);
+  border-color: var(--fc-button-active-border-color);
+  color: var(--fc-button-active-text-color);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.custom-calendar-wrapper .fc-event {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.custom-calendar-wrapper .fc-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.custom-calendar-wrapper .fc-daygrid-day-number {
+  font-weight: 500;
+  color: #334155; /* slate-700 */
+  padding: 4px 8px;
+}
