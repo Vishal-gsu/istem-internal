@@ -8,6 +8,7 @@ interface OrgMember {
   displayName: string;
   mail: string;
   jobTitle: string;
+  userPrincipalName?: string;
 }
 
 export default function MembersPage() {

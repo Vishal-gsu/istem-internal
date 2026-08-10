@@ -5,6 +5,9 @@ interface User {
   displayName?: string;
   mail?: string;
   userPrincipalName?: string;
+  username?: string;
+  name?: string;
+  [key: string]: any;
 }
 
 interface AuthContextType {
