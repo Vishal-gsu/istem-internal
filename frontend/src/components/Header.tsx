@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
+import { useStore } from '@/store/useStore';
 
 export default function Header() {
   const { user: account } = useAuth();
+  const { toggleMobileMenu } = useStore();
   
   const [reminders, setReminders] = useState<any[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -59,9 +61,16 @@ export default function Header() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 w-full h-16 bg-rust-600 text-white flex items-center px-6 z-50 shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-rust-100 text-rust-700 rounded-lg flex items-center justify-center">
+      <header className="fixed top-0 left-0 w-full h-16 bg-rust-600 text-white flex items-center px-4 md:px-6 z-50 shadow-md">
+        <div className="flex items-center gap-2 md:gap-3">
+          {/* Hamburger Menu Mobile */}
+          <button 
+            onClick={toggleMobileMenu}
+            className="md:hidden p-2 -ml-2 text-rust-100 hover:text-white rounded-lg transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+          <div className="hidden md:flex w-8 h-8 bg-rust-100 text-rust-700 rounded-lg items-center justify-center">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
           </div>
           <h1 className="text-xl font-bold tracking-tight">I-STEM</h1>

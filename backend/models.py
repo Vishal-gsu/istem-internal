@@ -22,10 +22,10 @@ class AttendeeTask(Base):
     is_vip = Column(Boolean, default=False)
     task_description = Column(String)
     status = Column(String, default="Pending")
-
-    __table_args__ = (
-        UniqueConstraint("meeting_id", "email", name="uix_meeting_email"),
-    )
+    start_date = Column(String, nullable=True)
+    due_date = Column(String, nullable=True)
+    priority = Column(String, default="medium")
+    depends_on = Column(String, nullable=True)
 
 class MeetingReminder(Base):
     __tablename__ = "meeting_reminders"

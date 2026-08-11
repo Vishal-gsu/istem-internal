@@ -172,11 +172,11 @@ def get_meetings(email: Optional[str] = None, db: Session = Depends(get_db), use
     result = []
     for m in meetings:
         is_organizer = (m.organizer_email == user_email)
-        vip_task = db.query(models.AttendeeTask).filter(
-            models.AttendeeTask.meeting_id == m.id,
-            models.AttendeeTask.email == user_email,
-            models.AttendeeTask.is_vip == True
-        ).first()
+        # Get all attendees for this meeting
+        attendees = db.query(models.AttendeeTask).filter(models.AttendeeTask.meeting_id == m.id).all()
+        attendees_str = ", ".join([a.email for a in attendees]) if attendees else m.organizer_email
+        
+        vip_task = next((a for a in attendees if a.email == user_email and a.is_vip), None)
         is_vip = vip_task is not None
         
         result.append({
@@ -188,7 +188,8 @@ def get_meetings(email: Optional[str] = None, db: Session = Depends(get_db), use
             "status": m.status,
             "organizer_email": m.organizer_email,
             "is_organizer": is_organizer,
-            "is_vip": is_vip
+            "is_vip": is_vip,
+            "attendee": attendees_str
         })
         
     return result
@@ -234,6 +235,204 @@ def get_pending_approvals(email: str, db: Session = Depends(get_db)):
     ).all()
     
     return meetings
+class WebhookPayload(BaseModel):
+    meeting_id: int
+    action: str # "cancel", "reschedule", "confirm"
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+
+@app.post("/api/webhooks/graph")
+def handle_graph_webhook(payload: WebhookPayload, db: Session = Depends(get_db)):
+    """
+    Receives push notifications from Microsoft Graph when meetings change.
+    (This simulates the webhook payload for MVP purposes).
+    """
+    meeting = db.query(models.MeetingEvent).filter(models.MeetingEvent.id == payload.meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+        
+    if payload.action == "cancel":
+        meeting.status = "Cancelled"
+    elif payload.action == "confirm":
+        meeting.status = "Scheduled"
+    elif payload.action == "reschedule":
+        from datetime import datetime
+        try:
+            if payload.start_time:
+                meeting.start_time = datetime.fromisoformat(payload.start_time.replace("Z", ""))
+            if payload.end_time:
+                meeting.end_time = datetime.fromisoformat(payload.end_time.replace("Z", ""))
+        except ValueError:
+            pass
+            
+    db.commit()
+    return {"status": "success", "message": f"Webhook processed: {payload.action}"}
+from fastapi.responses import HTMLResponse
+
+@app.get("/api/members/{email}/availability")
+def get_member_availability(email: str, db: Session = Depends(get_db)):
+    """
+    Returns today's busy blocks for a specific user to power the Team Dashboard.
+    Hides meeting titles for privacy.
+    """
+    from datetime import datetime, time
+    import pytz
+    
+    # We will use today's date in local server time for MVP (or IST)
+    ist = pytz.timezone('Asia/Kolkata')
+    now = datetime.now(ist)
+    start_of_day = datetime.combine(now.date(), time(0, 0))
+    end_of_day = datetime.combine(now.date(), time(23, 59, 59))
+    
+    # Find meetings where they are an attendee
+    attendee_tasks = db.query(models.AttendeeTask).filter(models.AttendeeTask.email == email).all()
+    meeting_ids = [t.meeting_id for t in attendee_tasks]
+    
+    if not meeting_ids:
+        return []
+        
+    # Get meetings for today that are not Cancelled
+    meetings = db.query(models.MeetingEvent).filter(
+        models.MeetingEvent.id.in_(meeting_ids),
+        models.MeetingEvent.start_time >= start_of_day,
+        models.MeetingEvent.start_time <= end_of_day,
+        models.MeetingEvent.status != "Cancelled"
+    ).all()
+    
+    busy_blocks = []
+    for m in meetings:
+        busy_blocks.append({
+            "start": m.start_time.isoformat() + "Z",
+            "end": m.end_time.isoformat() + "Z" if m.end_time else None
+        })
+        
+    return busy_blocks
+
+class ChatMessageRequest(BaseModel):
+    content: str
+
+@app.get("/api/chat/{email}")
+def api_get_chat(email: str, user: dict = Depends(get_current_user)):
+    from graph import get_chat_messages
+    return get_chat_messages(user["token"], user["username"], email)
+
+@app.post("/api/chat/{email}")
+def api_send_chat(email: str, req: ChatMessageRequest, user: dict = Depends(get_current_user)):
+    from graph import send_chat_message
+    success = send_chat_message(user["token"], user["username"], email, req.content)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send message via Graph API")
+    return {"status": "success"}
+
+@app.get("/api/meetings/{meeting_id}/respond", response_class=HTMLResponse)
+def respond_to_meeting(meeting_id: int, email: str, action: str, db: Session = Depends(get_db)):
+    meeting = db.query(models.MeetingEvent).filter(models.MeetingEvent.id == meeting_id).first()
+    if not meeting:
+        return "<h1>Meeting not found</h1>"
+        
+    if action == "confirm":
+        meeting.status = "Scheduled"
+        msg = f"Thank you! You have confirmed the meeting: {meeting.title}."
+    elif action == "reject":
+        meeting.status = "Cancelled"
+        msg = f"You have rejected the meeting: {meeting.title}. It has been cancelled."
+    else:
+        return "<h1>Invalid action</h1>"
+        
+    db.commit()
+    
+    # Return a beautiful HTML response
+    return f"""
+    <html>
+        <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f8fafc;">
+            <div style="background: white; padding: 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); text-align: center;">
+                <h1 style="color: #334155; margin-bottom: 20px;">{msg}</h1>
+                <p style="color: #64748b; margin-bottom: 30px;">You can safely close this window.</p>
+                <a href="http://localhost:3000/schedule" style="background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Return to Planner</a>
+            </div>
+        </body>
+    </html>
+    """
+
+class RescheduleRequest(BaseModel):
+    start_time: str
+    end_time: str
+    reason: Optional[str] = None
+
+@app.put("/api/meetings/{meeting_id}/reschedule")
+def reschedule_meeting(meeting_id: int, req: RescheduleRequest, db: Session = Depends(get_db)):
+    meeting = db.query(models.MeetingEvent).filter(models.MeetingEvent.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+        
+    from datetime import datetime
+    try:
+        meeting.start_time = datetime.fromisoformat(req.start_time.replace("Z", ""))
+        meeting.end_time = datetime.fromisoformat(req.end_time.replace("Z", ""))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format")
+        
+    db.commit()
+    return {"status": "success", "message": "Meeting rescheduled"}
+
+@app.put("/api/meetings/{meeting_id}/cancel")
+def cancel_meeting(meeting_id: int, db: Session = Depends(get_db)):
+    meeting = db.query(models.MeetingEvent).filter(models.MeetingEvent.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+        
+    meeting.status = "Cancelled"
+    db.commit()
+    return {"status": "success", "message": "Meeting cancelled"}
+
+class RebookRequest(BaseModel):
+    start_time: str
+    end_time: str
+
+@app.post("/api/meetings/{meeting_id}/rebook")
+def rebook_meeting(meeting_id: int, req: RebookRequest, db: Session = Depends(get_db)):
+    old_meeting = db.query(models.MeetingEvent).filter(models.MeetingEvent.id == meeting_id).first()
+    if not old_meeting:
+        raise HTTPException(status_code=404, detail="Original meeting not found")
+        
+    from datetime import datetime
+    try:
+        new_start = datetime.fromisoformat(req.start_time.replace("Z", ""))
+        new_end = datetime.fromisoformat(req.end_time.replace("Z", ""))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format")
+
+    # Clone meeting
+    new_meeting = models.MeetingEvent(
+        title=old_meeting.title,
+        start_time=new_start,
+        end_time=new_end,
+        location=old_meeting.location,
+        status="Scheduled",
+        organizer_email=old_meeting.organizer_email
+    )
+    db.add(new_meeting)
+    db.commit()
+    db.refresh(new_meeting)
+
+    # Clone attendees
+    old_attendees = db.query(models.AttendeeTask).filter(models.AttendeeTask.meeting_id == old_meeting.id).all()
+    for att in old_attendees:
+        new_att = models.AttendeeTask(
+            meeting_id=new_meeting.id,
+            email=att.email,
+            is_vip=att.is_vip,
+            task_description=att.task_description,
+            due_date=att.due_date,
+            start_date=att.start_date,
+            priority=att.priority,
+            depends_on=att.depends_on,
+            status=att.status
+        )
+        db.add(new_att)
+    
+    db.commit()
+    return {"status": "success", "message": "Meeting rebooked successfully", "new_meeting_id": new_meeting.id}
 
 @app.get("/api/tasks")
 def get_tasks(email: Optional[str] = None, db: Session = Depends(get_db)):
@@ -254,28 +453,43 @@ def get_tasks(email: Optional[str] = None, db: Session = Depends(get_db)):
             status = "todo"
             
         result.append({
-            "id": t.id,
+            "id": str(t.id),
             "title": t.task_description or "Attend meeting",
+            "description": t.task_description,
             "status": status,
-            "priority": "high" if t.is_vip else "normal",
+            "priority": t.priority if hasattr(t, 'priority') and t.priority else ("high" if t.is_vip else "medium"),
             "meeting": meeting_title,
-            "email": t.email
+            "email": t.email,
+            "assigneeIds": [t.email] if t.email else [],
+            "start": t.start_date or "",
+            "due": t.due_date or "",
+            "dependsOn": t.depends_on.split(",") if t.depends_on else [],
+            "parentId": None
         })
     return result
 
 class TaskCreate(BaseModel):
     title: str
+    description: Optional[str] = None
     status: str = "todo"
-    priority: str = "normal"
-    email: str
+    priority: str = "medium"
+    email: Optional[str] = None
+    assigneeIds: Optional[List[str]] = None
+    start: Optional[str] = None
+    due: Optional[str] = None
+    dependsOn: Optional[List[str]] = None
 
 @app.post("/api/tasks")
 def create_manual_task(task: TaskCreate, db: Session = Depends(get_db)):
     db_task = models.AttendeeTask(
-        task_description=task.title,
+        task_description=task.description or task.title,
         status=task.status,
         is_vip=task.priority == "high",
-        email=task.email,
+        priority=task.priority,
+        email=task.assigneeIds[0] if task.assigneeIds else (task.email or ""),
+        start_date=task.start,
+        due_date=task.due,
+        depends_on=",".join(task.dependsOn) if task.dependsOn else "",
         meeting_id=0
     )
     db.add(db_task)
@@ -516,6 +730,11 @@ def api_schedule_meeting(request: ScheduleMeetingRequest, user: dict = Depends(g
         graph_event = create_meeting_event(token, request.title, request.start_time, request.end_time, attendees_list, 15, prep_tasks)
         if graph_event and "onlineMeeting" in graph_event:
             teams_link = graph_event["onlineMeeting"].get("joinUrl")
+    elif status == "Pending VIP Approval":
+        from graph import send_vip_confirmation_email
+        for a in request.attendees:
+            if a.is_vip:
+                send_vip_confirmation_email(token, a.email, meeting.id, meeting.title)
             
     return {"status": "success", "meeting_id": meeting.id, "state": status, "teams_link": teams_link}
 

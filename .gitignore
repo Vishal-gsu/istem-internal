@@ -24,3 +24,6 @@ node_modules/
 dist/
 build/
 .next/
+
+# Project Specific
+extras/
