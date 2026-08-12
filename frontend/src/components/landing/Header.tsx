@@ -12,10 +12,12 @@ const loggedOutLinks = [
 
 const loggedInLinks = [
   { label: "Dashboard", href: "/dashboard" },
+  { label: "Projects", href: "/projects" },
   { label: "Calendar", href: "/calendar" },
   { label: "Meetings", href: "/meetings" },
   { label: "Schedule", href: "/schedule" },
   { label: "Tasks", href: "/tasks" },
+  { label: "Issues", href: "/issues" },
   { label: "Teams", href: "/team" },
 ];
 
@@ -39,6 +41,19 @@ export function Header() {
       window.location.href = "/api/auth/login";
     }
   };
+
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetch("/api/projects/invites/pending", { credentials: "include" })
+        .then(res => {
+          if (res.ok) return res.json();
+          return [];
+        })
+        .then(data => setPendingInvites(data))
+        .catch(() => {});
+    }
+  }, [isLoggedIn]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -89,12 +104,25 @@ export function Header() {
 
           <div className="hidden items-center gap-3 md:flex">
             {isLoggedIn ? (
-              <a
-                href="/api/auth/logout"
-                className="rounded-xl neu-inset px-4 py-2 text-sm font-semibold text-muted-foreground transition-all duration-200 hover:text-foreground"
-              >
-                Logout
-              </a>
+              <>
+                <a
+                  href="/dashboard"
+                  className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl neu-raised text-muted-foreground hover:text-foreground transition-all"
+                >
+                  <Sparkles size={18} />
+                  {pendingInvites.length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
+                      {pendingInvites.length}
+                    </span>
+                  )}
+                </a>
+                <a
+                  href="/api/auth/logout"
+                  className="rounded-xl neu-inset px-4 py-2 text-sm font-semibold text-muted-foreground transition-all duration-200 hover:text-foreground"
+                >
+                  Logout
+                </a>
+              </>
             ) : (
               <>
                 <button

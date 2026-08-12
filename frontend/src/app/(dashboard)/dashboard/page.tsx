@@ -32,6 +32,8 @@ export default function Dashboard() {
   const { tasks, meetings, setTasks, setMeetings, updateTaskStatus } = useStore();
   const [loading, setLoading] = useState(true);
   const [pendingMeetings, setPendingMeetings] = useState<any[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
+  const [pendingTasks, setPendingTasks] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -40,6 +42,9 @@ export default function Dashboard() {
         const tasksUrl = userEmail ? `/api/tasks?email=${userEmail}` : "/api/tasks";
         const meetingsUrl = userEmail ? `/api/meetings?email=${userEmail}` : "/api/meetings";
         const approvalsUrl = userEmail ? `/api/pending-approvals?email=${userEmail}` : null;
+        const invitesUrl = userEmail ? `/api/projects/invites/pending` : null;
+
+        const taskApprovalsUrl = userEmail ? `/api/project-tasks/pending-approvals?email=${userEmail}` : null;
 
         const [tasksRes, meetingsRes] = await Promise.all([
           fetch(tasksUrl, { credentials: "include" }),
@@ -53,6 +58,16 @@ export default function Dashboard() {
           const appRes = await fetch(approvalsUrl, { credentials: "include" });
           if (appRes.ok) setPendingMeetings(await appRes.json());
         }
+        
+        if (invitesUrl) {
+          const invRes = await fetch(invitesUrl, { credentials: "include" });
+          if (invRes.ok) setPendingInvites(await invRes.json());
+        }
+
+        if (taskApprovalsUrl) {
+          const tskRes = await fetch(taskApprovalsUrl, { credentials: "include" });
+          if (tskRes.ok) setPendingTasks(await tskRes.json());
+        }
       } catch (err) {
         console.error("Failed to fetch dashboard data", err);
       } finally {
@@ -63,6 +78,8 @@ export default function Dashboard() {
       fetchData();
     }
   }, [setTasks, setMeetings, account]);
+
+  const [showApprovals, setShowApprovals] = useState(false);
 
   const handleApprove = async (id: number) => {
     try {
@@ -77,6 +94,21 @@ export default function Dashboard() {
       if (appRes.ok) setPendingMeetings(await appRes.json());
       const meetingsRes = await fetch(`/api/meetings?email=${account?.username}`, { credentials: "include" });
       if (meetingsRes.ok) setMeetings(await meetingsRes.json());
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleInvite = async (invite_id: number, status: string) => {
+    try {
+      await fetch(`/api/projects/invites/${invite_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status })
+      });
+      const invRes = await fetch(`/api/projects/invites/pending`, { credentials: "include" });
+      if (invRes.ok) setPendingInvites(await invRes.json());
     } catch (err) {
       console.error(err);
     }
@@ -113,7 +145,24 @@ export default function Dashboard() {
   const doneTasks = tasks.filter(t => t.status === "done");
   const allDisplayTasks = [...activeTasks, ...doneTasks].slice(0, 8); // Just show top 8 in widget
 
-  const pendingCount = meetings.filter((m: any) => m.status.includes("Pending")).length;
+  const handleTaskApprove = async (task_id: number) => {
+    try {
+      await fetch(`/api/project-tasks/${task_id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include"
+      });
+      const tskRes = await fetch(`/api/project-tasks/pending-approvals?email=${account?.username}`, { credentials: "include" });
+      if (tskRes.ok) setPendingTasks(await tskRes.json());
+      
+      const tasksRes = await fetch(`/api/tasks?email=${account?.username}`, { credentials: "include" });
+      if (tasksRes.ok) setTasks(await tasksRes.json());
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const pendingCount = meetings.filter((m: any) => m.status.includes("Pending")).length + pendingInvites.length + pendingTasks.length;
 
   const stats = [
     { label: "Meetings Today", value: todaysEvents.length.toString(), hint: "Next up soon", icon: CalendarDays },
@@ -179,7 +228,13 @@ export default function Dashboard() {
             return (
               <Reveal key={s.label} delay={i * 90}>
                 <article
-                  onClick={() => window.location.href = href}
+                  onClick={() => {
+                    if (s.label === "Pending Approvals") {
+                      setShowApprovals(true);
+                    } else {
+                      window.location.href = href;
+                    }
+                  }}
                   className="neu-raised group h-full rounded-3xl p-6 transition-transform duration-300 hover:-translate-y-1 cursor-pointer"
                 >
                   <div className="flex items-center justify-between gap-4">
@@ -279,14 +334,32 @@ export default function Dashboard() {
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
                   <h2 className="truncate text-xl font-bold">Approvals</h2>
                   <span className="shrink-0 rounded-full bg-primary/12 px-3 py-1 text-xs font-semibold text-primary">
-                    {pendingMeetings.length} waiting
+                    {pendingMeetings.length + pendingInvites.length} waiting
                   </span>
                 </div>
 
                 <ul className="mt-5 space-y-3">
-                  {pendingMeetings.length === 0 && (
+                  {pendingMeetings.length === 0 && pendingInvites.length === 0 && (
                     <p className="text-sm text-muted-foreground italic">You are all caught up!</p>
                   )}
+                  {pendingInvites.map((inv: any) => (
+                    <li key={`inv-${inv.id}`} className="neu-inset rounded-2xl p-4 border border-primary/20">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">Project Invite: {inv.project_title}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Role: {inv.role}
+                        </p>
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <button onClick={() => handleInvite(inv.id, "accepted")} className="neu-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-success/15 px-3 py-2 text-xs font-semibold text-success">
+                          <Check className="h-3.5 w-3.5" /> Accept
+                        </button>
+                        <button onClick={() => handleInvite(inv.id, "declined")} className="neu-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-destructive/15 px-3 py-2 text-xs font-semibold text-destructive">
+                          <X className="h-3.5 w-3.5" /> Decline
+                        </button>
+                      </div>
+                    </li>
+                  ))}
                   {pendingMeetings.map((a: any) => (
                     <li key={a.id} className="neu-inset rounded-2xl p-4">
                       <div className="min-w-0">
@@ -362,6 +435,88 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Approvals Modal */}
+      {showApprovals && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setShowApprovals(false)} />
+          <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-3xl neu-raised bg-card p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold">Pending Approvals</h2>
+              <button onClick={() => setShowApprovals(false)} className="rounded-full p-2 hover:bg-secondary transition">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-2">
+              {pendingMeetings.length === 0 && pendingInvites.length === 0 && pendingTasks.length === 0 ? (
+                <p className="text-center text-muted-foreground italic py-8">No pending approvals!</p>
+              ) : (
+                <>
+                  {pendingTasks.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Task Approvals</h3>
+                      <ul className="space-y-3">
+                        {pendingTasks.map((t: any) => (
+                          <li key={t.id} className="neu-inset rounded-2xl p-4 flex flex-col gap-3">
+                            <div>
+                              <p className="font-bold">{t.title}</p>
+                              <p className="text-xs text-muted-foreground">Assignees: {t.assignees.join(', ')}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleTaskApprove(t.id)} className="neu-press flex-1 rounded-xl bg-success text-success-foreground py-2 text-xs font-bold">Approve</button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {pendingMeetings.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Meeting Invites</h3>
+                      <ul className="space-y-3">
+                        {pendingMeetings.map((m: any) => (
+                          <li key={m.id} className="neu-inset rounded-2xl p-4 flex flex-col gap-3">
+                            <div>
+                              <p className="font-bold">{m.title}</p>
+                              <p className="text-xs text-muted-foreground">From: {m.organizer_email}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleApprove(m.id)} className="neu-press flex-1 rounded-xl bg-primary py-2 text-xs font-bold text-primary-foreground">Accept</button>
+                              <button className="neu-press flex-1 rounded-xl border border-destructive/30 py-2 text-xs font-bold text-destructive">Decline</button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {pendingInvites.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Project Invites</h3>
+                      <ul className="space-y-3">
+                        {pendingInvites.map((inv: any) => (
+                          <li key={inv.id} className="neu-inset rounded-2xl p-4 flex flex-col gap-3">
+                            <div>
+                              <p className="font-bold">{inv.project_title}</p>
+                              <p className="text-xs text-muted-foreground">Role: {inv.role}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleInvite(inv.id, "accepted")} className="neu-press flex-1 rounded-xl bg-primary py-2 text-xs font-bold text-primary-foreground">Accept</button>
+                              <button onClick={() => handleInvite(inv.id, "declined")} className="neu-press flex-1 rounded-xl border border-destructive/30 py-2 text-xs font-bold text-destructive">Decline</button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

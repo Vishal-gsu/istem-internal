@@ -5,7 +5,7 @@ import { AvatarStack } from "./AvatarStack";
 import { statusLabels, type Task } from "@/data/tasks";
 import { cn } from "@/lib/utils";
 
-function StatusPill({ status }: { status: Task["status"] }) {
+function StatusPill({ status }: { status: any }) {
   return (
     <span
       className={cn(
@@ -15,7 +15,7 @@ function StatusPill({ status }: { status: Task["status"] }) {
         status === "todo" && "neu-inset text-muted-foreground",
       )}
     >
-      {statusLabels[status]}
+      {statusLabels[status as keyof typeof statusLabels] || status}
     </span>
   );
 }
@@ -26,17 +26,18 @@ function Row({
   depth,
   onOpen,
 }: {
-  task: Task;
-  tasks: Task[];
+  task: any;
+  tasks: any[];
   depth: number;
-  onOpen: (t: Task) => void;
+  onOpen: (t: any) => void;
 }) {
-  const children = tasks.filter((t) => t.parentId === task.id);
+  const [expanded, setExpanded] = useState(true);
+  const children = tasks.filter((t) => String(t.parent_id || t.parentId) === String(task.id));
   const [open, setOpen] = useState(true);
-  const blockers = task.dependsOn
-    .map((id) => tasks.find((t) => t.id === id))
-    .filter((t): t is Task => Boolean(t))
-    .filter((t) => t.status !== "done");
+  const blockers = (task.dependsOn || task.depends_on || [])
+    .map((id: any) => tasks.find((t) => t.id === id))
+    .filter((t: any) => Boolean(t))
+    .filter((t: any) => t.status !== "done");
 
   return (
     <div className="relative" style={{ paddingLeft: depth ? 26 : 0 }}>
@@ -74,7 +75,7 @@ function Row({
           <div className="flex shrink-0 items-center gap-3 sm:ml-auto">
             <StatusPill status={task.status} />
             <span className="hidden text-xs text-muted-foreground md:inline">
-              {new Date(task.due).toLocaleDateString("en-GB", {
+              {(task.targetDate || task.hardDeadline || task.due) && new Date(task.targetDate || task.hardDeadline || task.due).toLocaleDateString("en-GB", {
                 day: "numeric",
                 month: "short",
               })}
@@ -89,7 +90,7 @@ function Row({
         {blockers.length > 0 && (
           <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
             <Ban className="size-3 shrink-0" />
-            Blocked by {blockers.map((b) => b.title).join(", ")}
+            Blocked by {blockers.map((b: any) => b.title).join(", ")}
           </p>
         )}
       </div>
@@ -102,8 +103,8 @@ function Row({
   );
 }
 
-export function TaskTree({ tasks, onOpen }: { tasks: Task[]; onOpen: (t: Task) => void }) {
-  const roots = tasks.filter((t) => !t.parentId);
+export function TaskTree({ tasks, onOpen }: { tasks: any[]; onOpen: (t: any) => void }) {
+  const roots = tasks.filter((t) => !t.parentId && !t.parent_id);
   return (
     <div className="neu-inset animate-rise rounded-3xl p-3 sm:p-5">
       {roots.map((task) => (

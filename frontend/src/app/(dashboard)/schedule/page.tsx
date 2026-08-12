@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Clock, Search, Send, Users, X, CheckCircle2, CalendarDays } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clock, Search, Send, Users, X, CheckCircle2, CalendarDays, Filter } from "lucide-react";
 import { Reveal } from "@/components/dashboard/Reveal";
+import { Combobox } from "@/components/ui/Combobox";
 
 const TYPES = ["Internal Sync", "Client Review", "Vendor", "VIP Approval"];
 const DURATIONS = Array.from({ length: 24 }, (_, i) => (i + 1) * 15);
@@ -44,6 +45,9 @@ export default function SchedulePage() {
   const [slots, setSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
 
+  const [projects, setProjects] = useState<any[]>([]);
+  const [projectId, setProjectId] = useState<string>("none");
+
   useEffect(() => {
     fetch("/api/org-members", { credentials: "include" })
       .then(r => r.json())
@@ -57,6 +61,15 @@ export default function SchedulePage() {
             email: u.mail || ""
           }));
           setPeople(mapped);
+        }
+      })
+      .catch(console.error);
+
+    fetch("/api/projects", { credentials: "include" })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setProjects(data);
         }
       })
       .catch(console.error);
@@ -131,6 +144,7 @@ export default function SchedulePage() {
         title,
         start_time: startStr.endsWith('Z') ? startStr : startStr + "Z",
         end_time: endStr.endsWith('Z') ? endStr : endStr + "Z",
+        project_id: projectId === "none" ? null : parseInt(projectId, 10),
         attendees: attendees.map(a => {
           const p = people.find(x => x.id === a.id);
           return { email: p?.email || "", is_vip: a.is_vip, prep_task: a.task };
@@ -214,17 +228,33 @@ export default function SchedulePage() {
               
               {/* Title & Type */}
               <div className="grid gap-8 lg:grid-cols-2 xl:grid-cols-3">
-                <label className="block xl:col-span-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Meeting title
-                  </span>
-                  <input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="E.g., Platform sync"
-                    className="neu-inset mt-3 w-full rounded-2xl px-5 py-4 text-lg font-medium outline-none transition-shadow placeholder:text-muted-foreground/70 focus:ring-4 focus:ring-primary/40"
-                  />
-                </label>
+                <div className="flex flex-col gap-6 xl:col-span-1">
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Meeting title
+                    </span>
+                    <input
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="E.g., Platform sync"
+                      className="neu-inset mt-3 w-full rounded-2xl px-5 py-4 text-lg font-medium outline-none transition-shadow placeholder:text-muted-foreground/70 focus:ring-4 focus:ring-primary/40"
+                    />
+                  </label>
+                  
+                  <div className="block z-20">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 block">
+                      Link to Project (Optional)
+                    </span>
+                    <Combobox
+                      options={[
+                        { value: "none", label: "No Project (Standalone Meeting)" },
+                        ...projects.map(p => ({ value: String(p.id), label: p.title }))
+                      ]}
+                      value={projectId}
+                      onChange={setProjectId}
+                    />
+                  </div>
+                </div>
 
                 <div className="xl:col-span-2">
                   <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { useState, useEffect, Suspense } from "react";
+import { Plus, Filter, ChevronDown } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TaskTree } from "@/components/tasks/TaskTree";
 import { TimelineView } from "@/components/tasks/TimelineView";
@@ -11,20 +12,44 @@ import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog";
 import { type Task } from "@/data/tasks";
 import { Reveal } from "@/components/dashboard/Reveal";
 import { useAuth } from "@/components/AuthProvider";
+import { Combobox } from "@/components/ui/Combobox";
 
 export default function TasksPage() {
+  return (
+    <Suspense fallback={<div className="p-10">Loading tasks...</div>}>
+      <TasksContent />
+    </Suspense>
+  );
+}
+
+function TasksContent() {
+  const searchParams = useSearchParams();
+  const initialProjectId = searchParams.get("project");
   const { user: account } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [view, setView] = useState<ViewKey>("kanban");
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  const [projects, setProjects] = useState<any[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || "all");
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const res = await fetch("/api/projects", { credentials: "include" });
+        if (res.ok) setProjects(await res.json());
+      } catch (err) {}
+    };
+    if (account) fetchProjects();
+  }, [account]);
 
   useEffect(() => {
     const fetchTasks = async () => {
       try {
         const userEmail = account?.username || "";
-        const tasksUrl = userEmail ? `/api/tasks?email=${userEmail}` : "/api/tasks";
+        const tasksUrl = userEmail ? `/api/project-tasks?email=${userEmail}` : "/api/project-tasks";
         const res = await fetch(tasksUrl, { credentials: "include" });
         if (res.ok) setTasks(await res.json());
       } catch (err) {
@@ -41,18 +66,25 @@ export default function TasksPage() {
   const patch = async (id: string, next: Partial<Task>) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...next } : t)));
     
-    // Auto-save status if patched
-    if (next.status) {
-      try {
-        await fetch(`/api/tasks/${id}/status`, {
+    // Auto-save if patched
+    try {
+      const payload: any = {};
+      if (next.status) payload.status = next.status;
+      if (next.due) payload.hard_deadline = next.due;
+      if (next.targetDate) payload.target_date = next.targetDate;
+      if (next.assigneeIds) payload.assignees = next.assigneeIds;
+      if (next.estimatedHours !== undefined) payload.estimated_hours = next.estimatedHours;
+
+      if (Object.keys(payload).length > 0) {
+        await fetch(`/api/project-tasks/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ status: next.status }),
+          body: JSON.stringify(payload),
         });
-      } catch (e) {
-        console.error("Failed to update task status", e);
       }
+    } catch (e) {
+      console.error("Failed to update task", e);
     }
   };
 
@@ -87,11 +119,31 @@ export default function TasksPage() {
           </div>
         </Reveal>
 
-        <Reveal delay={80}>
-          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <ViewToggle value={view} onChange={setView} />
+        <Reveal delay={80} className="relative z-50">
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between relative z-50">
+            <div className="flex items-center gap-4 relative z-50">
+              <ViewToggle value={view} onChange={setView} />
+              
+              <div className="w-64 relative z-50">
+                <Combobox
+                  options={[
+                    { value: "all", label: "All My Tasks" },
+                    { value: "delegated", label: "Tasks I Delegated" },
+                    ...projects.map(p => ({ value: String(p.id), label: p.title }))
+                  ]}
+                  value={selectedProjectId}
+                  onChange={setSelectedProjectId}
+                  icon={<Filter className="h-4 w-4" />}
+                />
+              </div>
+            </div>
+
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              {tasks.length} tasks · {tasks.filter((t) => t.status === "done").length} completed
+              {tasks.filter(t => {
+                if (selectedProjectId === "all") return t.assigneeIds.includes(account?.username || "");
+                if (selectedProjectId === "delegated") return t.assignorEmail === account?.username && !t.assigneeIds.includes(account?.username || "");
+                return t.projectId === selectedProjectId || t.meetingId === selectedProjectId;
+              }).length} tasks
             </p>
           </div>
         </Reveal>
@@ -99,11 +151,23 @@ export default function TasksPage() {
         <Reveal delay={140}>
           <div className="mt-8">
             {view === "kanban" && (
-              <KanbanBoard tasks={tasks} onOpen={(t) => setOpenTaskId(t.id)} />
+              <KanbanBoard tasks={tasks.filter(t => {
+                if (selectedProjectId === "all") return t.assigneeIds.includes(account?.username || "");
+                if (selectedProjectId === "delegated") return t.assignorEmail === account?.username && !t.assigneeIds.includes(account?.username || "");
+                return t.projectId === selectedProjectId || t.meetingId === selectedProjectId;
+              })} onOpen={(t) => setOpenTaskId(t.id)} />
             )}
-            {view === "tree" && <TaskTree tasks={tasks} onOpen={(t) => setOpenTaskId(t.id)} />}
+            {view === "tree" && <TaskTree tasks={tasks.filter(t => {
+                if (selectedProjectId === "all") return t.assigneeIds.includes(account?.username || "");
+                if (selectedProjectId === "delegated") return t.assignorEmail === account?.username && !t.assigneeIds.includes(account?.username || "");
+                return t.projectId === selectedProjectId || t.meetingId === selectedProjectId;
+              })} onOpen={(t) => setOpenTaskId(t.id)} />}
             {view === "timeline" && (
-              <TimelineView tasks={tasks} onOpen={(t) => setOpenTaskId(t.id)} />
+              <TimelineView tasks={tasks.filter(t => {
+                if (selectedProjectId === "all") return t.assigneeIds.includes(account?.username || "");
+                if (selectedProjectId === "delegated") return t.assignorEmail === account?.username && !t.assigneeIds.includes(account?.username || "");
+                return t.projectId === selectedProjectId || t.meetingId === selectedProjectId;
+              })} onOpen={(t) => setOpenTaskId(t.id)} />
             )}
           </div>
         </Reveal>
@@ -115,6 +179,36 @@ export default function TasksPage() {
             onClose={() => setOpenTaskId(null)}
             onAssigneesChange={(id, ids) => patch(id, { assigneeIds: ids })}
             onStatusChange={(id, status) => patch(id, { status })}
+            onCreateTask={async (task) => {
+              try {
+                const res = await fetch("/api/tasks", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "include",
+                  body: JSON.stringify({
+                    title: task.title,
+                    description: task.description,
+                    status: task.status,
+                    priority: task.priority,
+                    assigneeIds: task.assigneeIds,
+                    start: task.start,
+                    due: task.due,
+                    dependsOn: task.dependsOn,
+                    parentId: task.parentId,
+                    weight: task.weight
+                  })
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  setTasks((prev) => [...prev, { ...task, id: String(data.task_id) }]);
+                } else {
+                  setTasks((prev) => [...prev, task]);
+                }
+              } catch (err) {
+                console.error(err);
+                setTasks((prev) => [...prev, task]);
+              }
+            }}
           />
         )}
 
@@ -137,7 +231,9 @@ export default function TasksPage() {
                     assigneeIds: task.assigneeIds,
                     start: task.start,
                     due: task.due,
-                    dependsOn: task.dependsOn
+                    dependsOn: task.dependsOn,
+                    parentId: task.parentId,
+                    weight: task.weight
                   })
                 });
                 if (res.ok) {

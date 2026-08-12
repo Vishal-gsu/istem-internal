@@ -8,11 +8,13 @@ export function CreateTaskDialog({
   open,
   onOpenChange,
   tasks,
+  initialParentId,
   onCreate,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tasks: Task[];
+  initialParentId?: string | null;
   onCreate: (task: Task) => void;
 }) {
   const [title, setTitle] = useState("");
@@ -22,6 +24,7 @@ export function CreateTaskDialog({
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [dependsOn, setDependsOn] = useState<string[]>([]);
   const [due, setDue] = useState("");
+  const [weight, setWeight] = useState<number>(initialParentId ? 10 : 100);
 
   const reset = () => {
     setTitle("");
@@ -44,7 +47,8 @@ export function CreateTaskDialog({
       priority,
       assigneeIds,
       dependsOn,
-      parentId: null,
+      parentId: initialParentId || null,
+      weight,
       start: today,
       due: due || today,
     });
@@ -125,24 +129,38 @@ export function CreateTaskDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              Column
-            </label>
-            <div className="neu-inset flex gap-1 rounded-xl p-1.5">
-              {(["todo", "in-progress", "done"] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatus(s)}
-                  className={cn(
-                    "neu-press flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold",
-                    status === s ? "neu-raised text-primary" : "text-muted-foreground",
-                  )}
-                >
-                  {statusLabels[s]}
-                </button>
-              ))}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                Status
+              </label>
+              <div className="neu-inset flex gap-1 rounded-2xl p-1.5">
+                {(["todo", "in-progress", "done"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStatus(s)}
+                    className={cn(
+                      "neu-press flex-1 rounded-xl px-2 py-1.5 text-xs font-semibold transition-all",
+                      status === s ? "neu-raised text-primary" : "text-muted-foreground",
+                    )}
+                  >
+                    {statusLabels[s]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                Weight
+              </label>
+              <input
+                type="number"
+                value={weight}
+                onChange={(e) => setWeight(parseInt(e.target.value) || 0)}
+                className="neu-inset w-full rounded-2xl bg-transparent px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
             </div>
           </div>
 

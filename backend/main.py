@@ -63,6 +63,7 @@ class MeetingCreate(BaseModel):
     duration: str
     priority: str
     lunch_protection: bool
+    project_id: Optional[int] = None
     attendees: List[AttendeeCreate]
 
 class StatusUpdate(BaseModel):
@@ -126,7 +127,9 @@ def schedule_meeting(meeting: MeetingCreate, db: Session = Depends(get_db)):
         start_time=start_datetime,
         location="Microsoft Teams (Auto)",
         status="Pending Graph API Sync",
-        organizer_email=meeting.attendees[0].email if meeting.attendees else "unknown" # Fallback
+        organizer_email=meeting.attendees[0].email if meeting.attendees else "unknown", # Fallback
+        is_project=False,
+        project_id=meeting.project_id
     )
     db.add(db_meeting)
     db.commit()
@@ -151,10 +154,201 @@ def schedule_meeting(meeting: MeetingCreate, db: Session = Depends(get_db)):
         "meeting_id": db_meeting.id
     }
 
+class ProjectRoleCreate(BaseModel):
+    email: str
+    role: str
+
+@app.get("/api/projects")
+def get_projects(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    user_email = user["username"]
+    
+    # User is either organizer or explicitly given a ProjectRole
+    roles = db.query(models.ProjectRole).filter(models.ProjectRole.email == user_email).all()
+    project_ids_from_roles = [r.project_id for r in roles]
+    
+    # Exclude pending invites from project list
+    projects = db.query(models.MeetingEvent).filter(
+        models.MeetingEvent.is_project == True,
+        (
+            (models.MeetingEvent.organizer_email == user_email) |
+            (models.MeetingEvent.id.in_(
+                db.query(models.ProjectRole.project_id).filter(
+                    models.ProjectRole.email == user_email,
+                    models.ProjectRole.status == "accepted"
+                )
+            ))
+        )
+    ).all()
+    
+    result = []
+    for p in projects:
+        # Determine effective role
+        effective_role = "Owner" if p.organizer_email == user_email else "Team Member"
+        role_record = next((r for r in roles if r.project_id == p.id), None)
+        if role_record:
+            effective_role = role_record.role
+            
+        result.append({
+            "id": p.id,
+            "title": p.title,
+            "start_time": p.start_time.isoformat() + "Z" if p.start_time else None,
+            "location": p.location,
+            "status": p.status,
+            "organizer_email": p.organizer_email,
+            "my_role": effective_role
+        })
+    return result
+
+class ProjectCreate(BaseModel):
+    title: str
+    start_time: str
+    location: str
+
+@app.post("/api/projects")
+def create_project(project: ProjectCreate, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    from datetime import datetime
+    try:
+        start_dt = datetime.fromisoformat(project.start_time.replace("Z", ""))
+    except ValueError:
+        start_dt = datetime.utcnow()
+        
+    db_project = models.MeetingEvent(
+        title=project.title,
+        start_time=start_dt,
+        location=project.location,
+        status="Active",
+        organizer_email=user["username"],
+        is_project=True
+    )
+    db.add(db_project)
+    db.commit()
+    db.refresh(db_project)
+    
+    # Automatically add the creator as Owner in ProjectRole
+    new_role = models.ProjectRole(project_id=db_project.id, email=user["username"], role="Owner", status="accepted")
+    db.add(new_role)
+    db.commit()
+    
+    return {"status": "success", "project_id": db_project.id}
+
+@app.get("/api/projects/{project_id}")
+def get_project(project_id: int, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    user_email = user["username"]
+    p = db.query(models.MeetingEvent).filter(models.MeetingEvent.id == project_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Project not found")
+        
+    role_record = db.query(models.ProjectRole).filter(
+        models.ProjectRole.project_id == project_id, 
+        models.ProjectRole.email == user_email
+    ).first()
+    
+    if p.organizer_email != user_email and (not role_record or role_record.status != "accepted"):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    effective_role = "Owner" if p.organizer_email == user_email else (role_record.role if role_record else "Team Member")
+    
+    return {
+        "id": p.id,
+        "title": p.title,
+        "start_time": p.start_time.isoformat() + "Z" if p.start_time else None,
+        "location": p.location,
+        "status": p.status,
+        "organizer_email": p.organizer_email,
+        "my_role": effective_role
+    }
+
+@app.get("/api/projects/{project_id}/roles")
+def get_project_roles(project_id: int, db: Session = Depends(get_db)):
+    roles = db.query(models.ProjectRole).filter(models.ProjectRole.project_id == project_id).all()
+    return [{"id": r.id, "email": r.email, "role": r.role} for r in roles]
+
+class RoleCreate(BaseModel):
+    email: str
+    role: str
+
+@app.post("/api/projects/{project_id}/roles")
+def add_project_role(project_id: int, role_data: RoleCreate, db: Session = Depends(get_db)):
+    # Legacy direct add
+    existing = db.query(models.ProjectRole).filter(
+        models.ProjectRole.project_id == project_id, 
+        models.ProjectRole.email == role_data.email
+    ).first()
+    if existing:
+        existing.role = role_data.role
+        existing.status = "accepted"
+    else:
+        new_role = models.ProjectRole(project_id=project_id, email=role_data.email, role=role_data.role, status="accepted")
+        db.add(new_role)
+    db.commit()
+    return {"status": "success"}
+
+@app.post("/api/projects/{project_id}/invites")
+def invite_to_project(project_id: int, role_data: RoleCreate, db: Session = Depends(get_db)):
+    existing = db.query(models.ProjectRole).filter(
+        models.ProjectRole.project_id == project_id, 
+        models.ProjectRole.email == role_data.email
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User already in project or invited")
+        
+    new_role = models.ProjectRole(project_id=project_id, email=role_data.email, role=role_data.role, status="pending")
+    db.add(new_role)
+    db.commit()
+    return {"status": "success", "message": "Invited"}
+
+@app.get("/api/projects/invites/pending")
+def get_pending_invites(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    user_email = user["username"]
+    invites = db.query(models.ProjectRole).filter(
+        models.ProjectRole.email == user_email,
+        models.ProjectRole.status == "pending"
+    ).all()
+    
+    result = []
+    for inv in invites:
+        p = db.query(models.MeetingEvent).filter(models.MeetingEvent.id == inv.project_id).first()
+        if p:
+            result.append({
+                "id": inv.id,
+                "project_id": p.id,
+                "project_title": p.title,
+                "role": inv.role
+            })
+    return result
+
+class InviteUpdate(BaseModel):
+    status: str # accepted or declined
+
+@app.put("/api/projects/invites/{invite_id}")
+def respond_to_invite(invite_id: int, update: InviteUpdate, db: Session = Depends(get_db)):
+    inv = db.query(models.ProjectRole).filter(models.ProjectRole.id == invite_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    
+    if update.status == "declined":
+        db.delete(inv)
+    else:
+        inv.status = "accepted"
+        
+    db.commit()
+    return {"status": "success"}
+
+@app.delete("/api/projects/{project_id}/roles/{email}")
+def remove_project_role(project_id: int, email: str, db: Session = Depends(get_db)):
+    role = db.query(models.ProjectRole).filter(
+        models.ProjectRole.project_id == project_id, 
+        models.ProjectRole.email == email
+    ).first()
+    if role:
+        db.delete(role)
+        db.commit()
+    return {"status": "success"}
+
 @app.get("/api/meetings")
 def get_meetings(email: Optional[str] = None, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     user_email = user["username"]
-    query = db.query(models.MeetingEvent)
+    query = db.query(models.MeetingEvent).filter(models.MeetingEvent.is_project == False)
     
     if email:
         # Find meetings where user is an attendee
@@ -169,8 +363,16 @@ def get_meetings(email: Optional[str] = None, db: Session = Depends(get_db), use
         
     meetings = query.order_by(models.MeetingEvent.start_time.asc()).all()
     
+    from datetime import datetime
+    now = datetime.utcnow()
+    
     result = []
     for m in meetings:
+        # Auto-close past meetings
+        if m.end_time and m.end_time < now and m.status not in ["Closed", "Cancelled"]:
+            m.status = "Closed"
+            db.commit()
+            
         is_organizer = (m.organizer_email == user_email)
         # Get all attendees for this meeting
         attendees = db.query(models.AttendeeTask).filter(models.AttendeeTask.meeting_id == m.id).all()
@@ -435,10 +637,12 @@ def rebook_meeting(meeting_id: int, req: RebookRequest, db: Session = Depends(ge
     return {"status": "success", "message": "Meeting rebooked successfully", "new_meeting_id": new_meeting.id}
 
 @app.get("/api/tasks")
-def get_tasks(email: Optional[str] = None, db: Session = Depends(get_db)):
+def get_tasks(email: Optional[str] = None, meeting_id: Optional[int] = None, db: Session = Depends(get_db)):
     query = db.query(models.AttendeeTask)
     if email:
         query = query.filter(models.AttendeeTask.email == email)
+    if meeting_id is not None:
+        query = query.filter(models.AttendeeTask.meeting_id == meeting_id)
     tasks = query.all()
     
     result = []
@@ -464,7 +668,9 @@ def get_tasks(email: Optional[str] = None, db: Session = Depends(get_db)):
             "start": t.start_date or "",
             "due": t.due_date or "",
             "dependsOn": t.depends_on.split(",") if t.depends_on else [],
-            "parentId": None
+            "parentId": str(t.parent_id) if t.parent_id else None,
+            "weight": t.weight if hasattr(t, 'weight') else 1,
+            "meetingId": str(t.meeting_id) if t.meeting_id else None
         })
     return result
 
@@ -478,9 +684,15 @@ class TaskCreate(BaseModel):
     start: Optional[str] = None
     due: Optional[str] = None
     dependsOn: Optional[List[str]] = None
+    parentId: Optional[str] = None
+    weight: Optional[int] = 1
+    meetingId: Optional[int] = None
 
 @app.post("/api/tasks")
 def create_manual_task(task: TaskCreate, db: Session = Depends(get_db)):
+    # Convert parentId string to int if present
+    parent_id = int(task.parentId) if task.parentId else None
+    
     db_task = models.AttendeeTask(
         task_description=task.description or task.title,
         status=task.status,
@@ -490,7 +702,9 @@ def create_manual_task(task: TaskCreate, db: Session = Depends(get_db)):
         start_date=task.start,
         due_date=task.due,
         depends_on=",".join(task.dependsOn) if task.dependsOn else "",
-        meeting_id=0
+        meeting_id=task.meetingId or 0,
+        parent_id=parent_id,
+        weight=task.weight or 1
     )
     db.add(db_task)
     db.commit()
@@ -503,9 +717,255 @@ def update_task_status(task_id: int, status_update: StatusUpdate, db: Session = 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
         
+    old_status = task.status
     task.status = status_update.status
+    
+    # Gamification: Award points if marking as 'done'
+    if old_status != "done" and status_update.status == "done" and task.email:
+        pts = db.query(models.GamificationPoints).filter(models.GamificationPoints.email == task.email).first()
+        if not pts:
+            pts = models.GamificationPoints(email=task.email, points=0)
+            db.add(pts)
+        pts.points += task.weight if hasattr(task, 'weight') and task.weight else 1
+    
     db.commit()
     return {"status": "success", "new_status": task.status}
+
+# --- NEW PROJECT TASKS API (PHASE 2) ---
+
+class ProjectTaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    status: str = "todo"
+    start_date: Optional[str] = None
+    target_date: Optional[str] = None
+    hard_deadline: Optional[str] = None
+    estimated_hours: int = 0
+    priority: str = "medium"
+    depends_on: Optional[List[str]] = None
+    weight: int = 1
+    project_id: int
+    assignees: Optional[List[str]] = None
+
+@app.post("/api/project-tasks")
+def create_project_task(task: ProjectTaskCreate, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    db_task = models.ProjectTask(
+        project_id=task.project_id,
+        title=task.title,
+        description=task.description or "",
+        status=task.status,
+        start_date=task.start_date,
+        target_date=task.target_date,
+        hard_deadline=task.hard_deadline,
+        estimated_hours=task.estimated_hours,
+        priority=task.priority,
+        depends_on=",".join(task.depends_on) if task.depends_on else "",
+        weight=task.weight,
+        assignor_email=user["username"]
+    )
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+
+    if task.assignees:
+        for email in task.assignees:
+            db_assign = models.TaskAssignment(task_id=db_task.id, email=email)
+            db.add(db_assign)
+        db.commit()
+
+    return {"status": "success", "task_id": db_task.id}
+
+@app.get("/api/project-tasks")
+def get_project_tasks(email: Optional[str] = None, project_id: Optional[int] = None, assignor_email: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(models.ProjectTask)
+    if project_id:
+        query = query.filter(models.ProjectTask.project_id == project_id)
+    if assignor_email:
+        query = query.filter(models.ProjectTask.assignor_email == assignor_email)
+        
+    tasks = query.all()
+    result = []
+    
+    for t in tasks:
+        # Fetch assignees
+        assignees = db.query(models.TaskAssignment).filter(models.TaskAssignment.task_id == t.id).all()
+        assignee_emails = [a.email for a in assignees]
+        
+        if email and (email not in assignee_emails) and (t.assignor_email != email) and (project_id is None) and (assignor_email is None):
+            continue # If filtering by email across all projects, skip if not assigned and not assignor.
+            
+        result.append({
+            "id": str(t.id),
+            "projectId": str(t.project_id),
+            "title": t.title,
+            "description": t.description,
+            "status": t.status,
+            "start": t.start_date or "",
+            "targetDate": t.target_date or "",
+            "hardDeadline": t.hard_deadline or "",
+            "estimatedHours": t.estimated_hours,
+            "priority": t.priority,
+            "dependsOn": t.depends_on.split(",") if t.depends_on else [],
+            "weight": t.weight,
+            "assigneeIds": assignee_emails,
+            "assignorEmail": t.assignor_email
+        })
+    return result
+
+@app.get("/api/project-tasks/pending-approvals")
+def get_pending_task_approvals(email: str, db: Session = Depends(get_db)):
+    tasks = db.query(models.ProjectTask).filter(
+        models.ProjectTask.assignor_email == email,
+        models.ProjectTask.status == "pending_review"
+    ).all()
+    
+    result = []
+    for t in tasks:
+        assignees = db.query(models.TaskAssignment).filter(models.TaskAssignment.task_id == t.id).all()
+        result.append({
+            "id": t.id,
+            "title": t.title,
+            "project_id": t.project_id,
+            "assignees": [a.email for a in assignees]
+        })
+    return result
+
+class ProjectTaskUpdate(BaseModel):
+    status: Optional[str] = None
+    hard_deadline: Optional[str] = None
+    target_date: Optional[str] = None
+    estimated_hours: Optional[int] = None
+    assignees: Optional[List[str]] = None
+
+@app.put("/api/project-tasks/{task_id}")
+def update_project_task(task_id: int, update: ProjectTaskUpdate, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    task = db.query(models.ProjectTask).filter(models.ProjectTask.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+        
+    old_deadline = task.hard_deadline
+    old_status = task.status
+
+    if update.status is not None:
+        # Intercept "done" if not the assignor
+        if update.status == "done" and task.assignor_email != user["username"]:
+            task.status = "pending_review"
+        else:
+            task.status = update.status
+            
+    if update.hard_deadline is not None:
+        task.hard_deadline = update.hard_deadline
+    if update.target_date is not None:
+        task.target_date = update.target_date
+    if update.estimated_hours is not None:
+        task.estimated_hours = update.estimated_hours
+        
+    if update.assignees is not None:
+        # Clear existing assignees and rewrite
+        db.query(models.TaskAssignment).filter(models.TaskAssignment.task_id == task_id).delete()
+        for email in update.assignees:
+            db.add(models.TaskAssignment(task_id=task_id, email=email))
+
+    db.commit()
+    
+    # Auto-Shift Logic for dependent tasks
+    if old_deadline and update.hard_deadline and old_deadline != update.hard_deadline:
+        try:
+            from datetime import datetime, timedelta
+            old_dt = datetime.fromisoformat(old_deadline.replace("Z", ""))
+            new_dt = datetime.fromisoformat(update.hard_deadline.replace("Z", ""))
+            delta_days = (new_dt - old_dt).days
+            
+            if delta_days != 0:
+                # Shift dependent tasks
+                all_tasks = db.query(models.ProjectTask).filter(models.ProjectTask.project_id == task.project_id).all()
+                for dep in all_tasks:
+                    if dep.depends_on and str(task_id) in dep.depends_on.split(","):
+                        if dep.start_date:
+                            s = datetime.fromisoformat(dep.start_date.replace("Z", ""))
+                            dep.start_date = (s + timedelta(days=delta_days)).strftime("%Y-%m-%d")
+                        if dep.hard_deadline:
+                            d = datetime.fromisoformat(dep.hard_deadline.replace("Z", ""))
+                            dep.hard_deadline = (d + timedelta(days=delta_days)).strftime("%Y-%m-%d")
+                        if dep.target_date:
+                            t_dt = datetime.fromisoformat(dep.target_date.replace("Z", ""))
+                            dep.target_date = (t_dt + timedelta(days=delta_days)).strftime("%Y-%m-%d")
+                db.commit()
+        except Exception as e:
+            print("Auto-shift error:", e)
+
+    return {"status": "success", "new_status": task.status}
+
+@app.post("/api/project-tasks/{task_id}/approve")
+def approve_project_task(task_id: int, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    task = db.query(models.ProjectTask).filter(models.ProjectTask.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+        
+    if task.assignor_email != user["username"]:
+        raise HTTPException(status_code=403, detail="Only the assignor can approve this task")
+        
+    task.status = "done"
+    db.commit()
+    return {"status": "success", "new_status": "done"}
+
+# --- END NEW PROJECT TASKS API ---
+
+@app.get("/api/gamification")
+def get_gamification(db: Session = Depends(get_db)):
+    points = db.query(models.GamificationPoints).order_by(models.GamificationPoints.points.desc()).all()
+    return [{"email": p.email, "points": p.points} for p in points]
+
+import asyncio
+from fastapi.responses import StreamingResponse
+
+announcement_queues = {} # project_id -> list of Queue
+
+@app.get("/api/projects/{project_id}/stream")
+async def project_stream(project_id: int):
+    q = asyncio.Queue()
+    if project_id not in announcement_queues:
+        announcement_queues[project_id] = []
+    announcement_queues[project_id].append(q)
+    
+    async def event_generator():
+        try:
+            while True:
+                msg = await q.get()
+                yield f"data: {msg}\n\n"
+        except asyncio.CancelledError:
+            if project_id in announcement_queues and q in announcement_queues[project_id]:
+                announcement_queues[project_id].remove(q)
+                if not announcement_queues[project_id]:
+                    del announcement_queues[project_id]
+                    
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+class AnnouncementCreate(BaseModel):
+    content: str
+
+@app.post("/api/projects/{project_id}/announcements")
+async def create_announcement(project_id: int, ann: AnnouncementCreate, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    from datetime import datetime
+    import json
+    
+    db_ann = models.ProjectAnnouncement(
+        project_id=project_id,
+        content=ann.content,
+        author_email=user["username"],
+        created_at=datetime.utcnow().isoformat()
+    )
+    db.add(db_ann)
+    db.commit()
+    db.refresh(db_ann)
+    
+    # Publish to SSE
+    if project_id in announcement_queues:
+        payload = json.dumps({"id": db_ann.id, "content": db_ann.content, "author": db_ann.author_email, "created_at": db_ann.created_at})
+        for q in announcement_queues[project_id]:
+            await q.put(payload)
+            
+    return {"status": "success", "announcement_id": db_ann.id}
 
 class RescheduleRequest(BaseModel):
     new_start: str
@@ -561,6 +1021,58 @@ def get_reminders(id: int, email: str, db: Session = Depends(get_db)):
         models.MeetingReminder.email == email
     ).all()
     return reminders
+
+class IssueCreate(BaseModel):
+    title: str
+    description: str
+    project_id: Optional[int] = None
+    meeting_id: Optional[int] = None
+    assigned_to: Optional[str] = None
+
+@app.post("/api/issues")
+def create_issue(issue: IssueCreate, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    from datetime import datetime
+    new_issue = models.Issue(
+        title=issue.title,
+        description=issue.description,
+        project_id=issue.project_id,
+        meeting_id=issue.meeting_id,
+        creator_email=user["username"],
+        assigned_to=issue.assigned_to,
+        created_at=datetime.utcnow().isoformat()
+    )
+    db.add(new_issue)
+    db.commit()
+    db.refresh(new_issue)
+    return {"status": "success", "issue_id": new_issue.id}
+
+@app.get("/api/issues")
+def get_issues(project_id: Optional[int] = None, meeting_id: Optional[int] = None, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    query = db.query(models.Issue)
+    if project_id:
+        query = query.filter(models.Issue.project_id == project_id)
+    if meeting_id:
+        query = query.filter(models.Issue.meeting_id == meeting_id)
+        
+    # If no specific filter, return issues created by or assigned to the user
+    if not project_id and not meeting_id:
+        query = query.filter(
+            (models.Issue.creator_email == user["username"]) | 
+            (models.Issue.assigned_to == user["username"])
+        )
+        
+    issues = query.all()
+    return [{
+        "id": i.id,
+        "title": i.title,
+        "description": i.description,
+        "status": i.status,
+        "project_id": i.project_id,
+        "meeting_id": i.meeting_id,
+        "creator_email": i.creator_email,
+        "assigned_to": i.assigned_to,
+        "created_at": i.created_at
+    } for i in issues]
 
 class NoteCreate(BaseModel):
     content: str

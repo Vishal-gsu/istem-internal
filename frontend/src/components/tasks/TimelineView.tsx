@@ -6,7 +6,7 @@ const DAY = 86_400_000;
 
 export function TimelineView({ tasks, onOpen }: { tasks: Task[]; onOpen: (t: Task) => void }) {
   const starts = tasks.map((t) => new Date(t.start).getTime());
-  const ends = tasks.map((t) => new Date(t.due).getTime());
+  const ends = tasks.map((t) => new Date(t.due || t.start).getTime());
   const min = Math.min(...starts);
   const max = Math.max(...ends);
   const span = Math.max(max - min, DAY);
@@ -37,7 +37,7 @@ export function TimelineView({ tasks, onOpen }: { tasks: Task[]; onOpen: (t: Tas
         <div className="flex flex-col gap-3">
           {tasks.map((task) => {
             const s = new Date(task.start).getTime();
-            const e = new Date(task.due).getTime();
+            const e = new Date(task.due || task.start).getTime();
             const left = ((s - min) / span) * 100;
             const width = Math.max(((e - s) / span) * 100, 4);
             return (

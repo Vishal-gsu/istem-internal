@@ -1,5 +1,5 @@
 export type Priority = "high" | "medium" | "low";
-export type Status = "todo" | "in-progress" | "done";
+export type Status = "todo" | "in-progress" | "done" | "tentative" | "blocked" | "waiting-client" | "pending_review";
 
 export type User = {
   id: string;
@@ -17,8 +17,15 @@ export type Task = {
   assigneeIds: string[];
   dependsOn: string[];
   parentId: string | null;
+  weight: number;
+  meetingId?: string | null;
+  projectId?: string | null;
   start: string;
-  due: string;
+  due?: string;
+  targetDate?: string;
+  hardDeadline?: string;
+  estimatedHours?: number;
+  assignorEmail?: string;
 };
 
 export const users: User[] = [
@@ -34,6 +41,10 @@ export const statusLabels: Record<Status, string> = {
   todo: "To Do",
   "in-progress": "In Progress",
   done: "Done",
+  tentative: "Tentative",
+  blocked: "Blocked",
+  "waiting-client": "Waiting on Client",
+  pending_review: "Pending Review"
 };
 
 export const initialTasks: Task[] = [
@@ -47,6 +58,7 @@ export const initialTasks: Task[] = [
     assigneeIds: ["u4", "u3"],
     dependsOn: [],
     parentId: null,
+    weight: 100,
     start: "2026-08-03",
     due: "2026-08-21",
   },
@@ -59,6 +71,7 @@ export const initialTasks: Task[] = [
     assigneeIds: ["u4"],
     dependsOn: [],
     parentId: "t1",
+    weight: 40,
     start: "2026-08-05",
     due: "2026-08-14",
   },
@@ -71,6 +84,7 @@ export const initialTasks: Task[] = [
     assigneeIds: ["u1"],
     dependsOn: ["t2"],
     parentId: "t1",
+    weight: 60,
     start: "2026-08-15",
     due: "2026-08-24",
   },
@@ -83,6 +97,7 @@ export const initialTasks: Task[] = [
     assigneeIds: ["u2"],
     dependsOn: [],
     parentId: null,
+    weight: 20,
     start: "2026-07-27",
     due: "2026-08-06",
   },
@@ -95,6 +110,7 @@ export const initialTasks: Task[] = [
     assigneeIds: ["u3", "u1"],
     dependsOn: ["t4"],
     parentId: null,
+    weight: 100,
     start: "2026-08-10",
     due: "2026-08-26",
   },
@@ -107,6 +123,7 @@ export const initialTasks: Task[] = [
     assigneeIds: ["u3"],
     dependsOn: ["t5"],
     parentId: "t5",
+    weight: 100,
     start: "2026-08-18",
     due: "2026-09-02",
   },
@@ -119,6 +136,7 @@ export const initialTasks: Task[] = [
     assigneeIds: ["u5"],
     dependsOn: [],
     parentId: null,
+    weight: 50,
     start: "2026-08-01",
     due: "2026-08-19",
   },
@@ -131,6 +149,7 @@ export const initialTasks: Task[] = [
     assigneeIds: ["u6", "u3"],
     dependsOn: [],
     parentId: null,
+    weight: 80,
     start: "2026-07-20",
     due: "2026-08-04",
   },

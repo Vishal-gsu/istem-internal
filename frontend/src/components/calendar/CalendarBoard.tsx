@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 import { EventDialog } from "./EventDialog";
 import { useAuth } from "@/components/AuthProvider";
 import {
@@ -198,12 +199,12 @@ export function CalendarBoard() {
               </button>
             ))}
           </div>
-          <button
-            type="button"
+          <Link
+            href="/schedule"
             className="hidden items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 transition hover:scale-[1.03] lg:inline-flex"
           >
             <Plus size={16} /> New meeting
-          </button>
+          </Link>
         </div>
       </div>
 

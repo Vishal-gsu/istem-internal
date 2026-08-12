@@ -33,8 +33,11 @@ export function TaskCard({
       <div className="mt-4 flex items-center justify-between gap-3">
         <AvatarStack ids={task.assigneeIds} />
         <span className="text-[11px] font-medium text-muted-foreground">
-          Due{" "}
-          {new Date(task.due).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+          {task.due ? (
+            <>Due {new Date(task.due).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</>
+          ) : (
+            "No due date"
+          )}
         </span>
       </div>
     </button>
