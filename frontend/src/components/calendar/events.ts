@@ -11,6 +11,7 @@ export interface CalendarEvent {
   /** decimal hours, e.g. 9.5 = 09:30 */
   start: number;
   end: number;
+  is_vip?: boolean;
 }
 
 export const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

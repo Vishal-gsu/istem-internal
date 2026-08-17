@@ -30,14 +30,29 @@ export function TaskCard({
           <span className="truncate">Depends on: {dependencyTitle}</span>
         </p>
       )}
+      {task.is_dependency_readonly && (
+        <div className="mt-2 inline-block rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive uppercase tracking-wide">
+          Read-Only Dependency
+        </div>
+      )}
+      {!task.is_dependency_readonly && task.sourceType === "issue" && (
+        <div className="mt-2 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary uppercase tracking-wide">
+          From Issue #{task.sourceId}
+        </div>
+      )}
+      {!task.is_dependency_readonly && task.assignorEmail && !task.sourceType && (
+        <div className="mt-2 inline-block rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-bold text-secondary-foreground uppercase tracking-wide">
+          Assigned by {task.assignorEmail.split('@')[0]}
+        </div>
+      )}
       <div className="mt-4 flex items-center justify-between gap-3">
         <AvatarStack ids={task.assigneeIds} />
         <span className="text-[11px] font-medium text-muted-foreground">
-          {task.due ? (
+          {task.is_dependency_readonly ? "Dependency" : (task.due ? (
             <>Due {new Date(task.due).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</>
           ) : (
             "No due date"
-          )}
+          ))}
         </span>
       </div>
     </button>

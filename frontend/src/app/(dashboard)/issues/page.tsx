@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { Reveal } from "@/components/dashboard/Reveal";
-import { AlertCircle, CheckCircle2, MessageSquare, Plus, ArrowRight } from "lucide-react";
+import { AlertCircle, CheckCircle2, MessageSquare, Plus, ArrowRight, X } from "lucide-react";
 import { useStore } from "@/store/useStore";
 
 type Issue = {
@@ -20,8 +21,10 @@ type Issue = {
 
 export default function IssuesPage() {
   const { user: account } = useAuth();
+  const router = useRouter();
   const { tasks, setTasks } = useStore();
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Create Issue Modal State
@@ -32,7 +35,7 @@ export default function IssuesPage() {
 
   const fetchIssues = async () => {
     try {
-      const res = await fetch("/api/issues", { credentials: "include" });
+      const res = await fetch("/sync/api/issues", { credentials: "include" });
       if (res.ok) setIssues(await res.json());
     } catch (err) {
       console.error(err);
@@ -42,13 +45,19 @@ export default function IssuesPage() {
   };
 
   useEffect(() => {
-    if (account) fetchIssues();
+    if (account) {
+      fetchIssues();
+      fetch("/sync/api/org-members", { credentials: "include" })
+        .then(res => res.json())
+        .then(data => setMembers(data))
+        .catch(console.error);
+    }
   }, [account]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/issues", {
+      const res = await fetch("/sync/api/issues", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -72,7 +81,7 @@ export default function IssuesPage() {
 
   const convertToTask = async (issue: Issue) => {
     try {
-      const res = await fetch("/api/tasks", {
+      const res = await fetch("/sync/api/project-tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -81,15 +90,25 @@ export default function IssuesPage() {
           description: issue.description,
           status: "todo",
           priority: "high",
-          email: account?.username,
-          assigneeIds: issue.assigned_to ? [issue.assigned_to] : [account?.username],
-          meetingId: issue.project_id || 0,
+          assignees: issue.assigned_to ? [issue.assigned_to] : [account?.username],
+          project_id: issue.project_id || null,
+          source_type: "issue",
+          source_id: issue.id.toString(),
         }),
       });
       
       if (res.ok) {
+        const data = await res.json();
+        if (data.task_id) {
+          await fetch(`/sync/api/issues/${issue.id}/link-task`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ task_id: data.task_id })
+          });
+        }
         alert("Issue successfully converted to a Task!");
-        // Update issue status to closed in real implementation, but for now just notify
+        fetchIssues();
       }
     } catch (err) {
       console.error(err);
@@ -178,14 +197,22 @@ export default function IssuesPage() {
                       </div>
                     </div>
                     
-                    {issue.status === "open" && (
-                      <button
-                        onClick={() => convertToTask(issue)}
-                        className="neu-press inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-transform hover:scale-105"
-                      >
-                        Convert to Task <ArrowRight className="h-4 w-4" />
-                      </button>
-                    )}
+                    <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+                      <p className="text-xs text-muted-foreground font-mono">ID: {issue.id}</p>
+                      
+                      {issue.task_id ? (
+                        <span className="inline-flex items-center gap-2 rounded-xl bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
+                          Assigned to Task #{issue.task_id}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => convertToTask(issue)}
+                          className="neu-press inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-transform hover:scale-105"
+                        >
+                          Convert to Task <ArrowRight className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))
@@ -220,14 +247,18 @@ export default function IssuesPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-2">Assign To (Email, Optional)</label>
-                  <input
-                    type="email"
+                  <label className="block text-sm font-semibold mb-2">Assign To (Optional)</label>
+                  <select
                     value={newAssignee}
                     onChange={(e) => setNewAssignee(e.target.value)}
-                    className="neu-inset w-full rounded-xl bg-transparent px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder="user@example.com"
-                  />
+                    className="neu-inset w-full rounded-xl bg-transparent px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none"
+                  >
+                    <option value="">Unassigned</option>
+                    <option value={account?.username}>Assign to Me ({account?.name})</option>
+                    {members.filter(m => m.mail !== account?.username).map(m => (
+                      <option key={m.id} value={m.mail}>{m.displayName} ({m.mail})</option>
+                    ))}
+                  </select>
                 </div>
                 
                 <div className="mt-8 flex justify-end gap-3">

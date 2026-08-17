@@ -202,8 +202,8 @@ def send_vip_confirmation_email(user_token: str, vip_email: str, meeting_id: int
     Uses Microsoft Graph /me/sendMail API.
     """
     try:
-        # We assume the web app is running locally for testing
-        base_url = "http://localhost:8000"
+        import os
+        base_url = os.getenv("BACKEND_PUBLIC_URL", "http://localhost:8000")
         
         confirm_url = f"{base_url}/api/meetings/{meeting_id}/respond?email={vip_email}&action=confirm"
         reject_url = f"{base_url}/api/meetings/{meeting_id}/respond?email={vip_email}&action=reject"

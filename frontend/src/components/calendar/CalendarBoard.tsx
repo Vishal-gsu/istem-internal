@@ -33,7 +33,7 @@ export function CalendarBoard() {
     const fetchMeetings = async () => {
       try {
         const userEmail = account?.username || "";
-        const meetingsUrl = userEmail ? `/api/meetings?email=${userEmail}` : "/api/meetings";
+        const meetingsUrl = userEmail ? `/sync/api/meetings?email=${userEmail}` : "/sync/api/meetings";
         const res = await fetch(meetingsUrl, { credentials: "include" });
         if (res.ok) {
           setMeetings(await res.json());
@@ -63,7 +63,7 @@ export function CalendarBoard() {
 
   const dynamicEvents = useMemo(() => {
     return meetings
-      .filter((m: any) => !m.status.includes("Cancelled"))
+      .filter((m: any) => !m.status.includes("Cancelled") && !m.status.includes("Declined"))
       .map((m: any) => {
         const startDt = new Date(m.start_time);
         const endDt = new Date(m.end_time || m.start_time);
@@ -85,6 +85,7 @@ export function CalendarBoard() {
           location: m.location || "Online",
           status: m.status.includes("Pending VIP") ? "pending" : "scheduled",
           attendee: m.attendee,
+          is_vip: m.is_vip,
           originalStart: startDt, // So we can filter by the exact week!
         } as CalendarEvent & { originalStart: Date };
       })

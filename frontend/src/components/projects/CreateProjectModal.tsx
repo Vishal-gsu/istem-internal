@@ -19,7 +19,7 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
     setError("");
 
     try {
-      const res = await fetch("/api/projects", {
+      const res = await fetch("/sync/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

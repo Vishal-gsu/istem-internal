@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,8 @@ import {
   formatIstTime,
   type CalendarEvent,
 } from "./events";
+import { DeclineModal } from "@/components/meetings/DeclineModal";
+import { useState } from "react";
 
 interface EventDialogProps {
   event: CalendarEvent | null;
@@ -37,11 +40,8 @@ const inputClass =
   "w-full rounded-xl border-0 neu-inset px-4 py-3 text-sm font-medium text-foreground outline-none ring-primary/40 transition focus:ring-2";
 
 export function EventDialog({ event, dates, open, onOpenChange }: EventDialogProps) {
-  const [mode, setMode] = useState<"details" | "reschedule">("details");
-
-  useEffect(() => {
-    if (open) setMode("details");
-  }, [open, event?.id]);
+  const router = useRouter();
+  const [showDecline, setShowDecline] = useState(false);
 
   const pending = event?.status === "pending";
 
@@ -75,14 +75,11 @@ export function EventDialog({ event, dates, open, onOpenChange }: EventDialogPro
               {event?.title ?? "Meeting"}
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
-              {mode === "details"
-                ? "Review the meeting details below, then reschedule or cancel."
-                : "Propose a new slot and tell the attendees why."}
+              Review the meeting details below, then reschedule or cancel.
             </DialogDescription>
           </DialogHeader>
 
-          {mode === "details" ? (
-            <div className="mt-6 space-y-3">
+          <div className="mt-6 space-y-3">
               <DetailRow
                 icon={<CalendarClock size={16} />}
                 label="Date"
@@ -109,121 +106,90 @@ export function EventDialog({ event, dates, open, onOpenChange }: EventDialogPro
               />
 
               <div className="grid grid-cols-1 gap-3 pt-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setMode("reschedule")}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-info px-4 py-3 text-sm font-bold text-info-foreground shadow-lg shadow-info/25 transition hover:scale-[1.02] hover:shadow-xl"
-                >
-                  <RotateCcw size={16} /> Reschedule
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (event?.id) {
-                      try {
-                        await fetch(`/api/meetings/${event.id}/cancel`, { method: "PUT" });
-                        toast.success("Meeting declined", {
-                          description: "Attendees will be notified.",
-                        });
-                        window.location.reload(); // Refresh the page to show the update
-                      } catch (err) {
-                        toast.error("Failed to cancel meeting.");
-                      }
-                    }
-                    onOpenChange(false);
-                  }}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-destructive px-4 py-3 text-sm font-bold text-destructive-foreground shadow-lg shadow-destructive/25 transition hover:scale-[1.02] hover:shadow-xl"
-                >
-                  <XCircle size={16} /> Decline / Cancel
-                </button>
+                {pending && event?.is_vip ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (event?.id) {
+                          try {
+                            await fetch("/sync/api/approve-meeting", {
+                              method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ meeting_id: parseInt(event.id) })
+                            });
+                            toast.success("Meeting approved!");
+                            window.location.reload();
+                          } catch (err) {
+                            toast.error("Failed to approve meeting.");
+                          }
+                        }
+                      }}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-success/15 px-4 py-3 text-sm font-bold text-success shadow-lg shadow-success/10 transition hover:scale-[1.02] hover:bg-success/25"
+                    >
+                      <CheckCircle2 size={16} /> Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDecline(true)}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-destructive/40 px-4 py-3 text-sm font-bold text-destructive shadow-lg shadow-destructive/10 transition hover:scale-[1.02] hover:bg-destructive/10"
+                    >
+                      <XCircle size={16} /> Decline
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (event?.id) {
+                          onOpenChange(false);
+                          router.push(`/schedule?rebook_id=${event.id}`);
+                        }
+                      }}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-info px-4 py-3 text-sm font-bold text-info-foreground shadow-lg shadow-info/25 transition hover:scale-[1.02] hover:shadow-xl"
+                    >
+                      <RotateCcw size={16} /> Reschedule
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (event?.id) {
+                          try {
+                            await fetch(`/sync/api/meetings/${event.id}/cancel`, { method: "PUT" });
+                            toast.success("Meeting cancelled", {
+                              description: "Attendees will be notified.",
+                            });
+                            window.location.reload();
+                          } catch (err) {
+                            toast.error("Failed to cancel meeting.");
+                          }
+                        }
+                        onOpenChange(false);
+                      }}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-destructive px-4 py-3 text-sm font-bold text-destructive-foreground shadow-lg shadow-destructive/25 transition hover:scale-[1.02] hover:shadow-xl"
+                    >
+                      <XCircle size={16} /> Cancel Meeting
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-          ) : (
-            <form
-              className="mt-6 space-y-4"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (event?.id) {
-                  const formData = new FormData(e.currentTarget);
-                  try {
-                    await fetch(`/api/meetings/${event.id}/reschedule`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        start_time: formData.get("start"),
-                        end_time: formData.get("end"),
-                        reason: formData.get("reason"),
-                      }),
-                    });
-                    toast.success("Reschedule request sent", {
-                      description: "We'll notify you once it's confirmed.",
-                    });
-                    window.location.reload(); // Refresh the page to show the update
-                  } catch (err) {
-                    toast.error("Failed to reschedule meeting.");
-                  }
-                }
-                onOpenChange(false);
-              }}
-            >
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="block text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                    New start
-                  </span>
-                  <input
-                    type="datetime-local"
-                    name="start"
-                    required
-                    defaultValue={dates?.start ? new Date(dates.start.getTime() - dates.start.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""}
-                    className={inputClass}
-                  />
-                </label>
-                <label className="space-y-2">
-                  <span className="block text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                    New end
-                  </span>
-                  <input
-                    type="datetime-local"
-                    name="end"
-                    required
-                    defaultValue={dates?.end ? new Date(dates.end.getTime() - dates.end.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""}
-                    className={inputClass}
-                  />
-                </label>
-              </div>
-              <label className="space-y-2">
-                <span className="block text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                  Reason
-                </span>
-                <input
-                  type="text"
-                  name="reason"
-                  required
-                  placeholder="Conflicting client review…"
-                  className={inputClass}
-                />
-              </label>
-
-              <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-[auto_1fr]">
-                <button
-                  type="button"
-                  onClick={() => setMode("details")}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-foreground neu-inset transition hover:text-primary"
-                >
-                  <ArrowLeft size={16} /> Back
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 transition hover:scale-[1.02] hover:shadow-xl"
-                >
-                  Send request
-                </button>
-              </div>
-            </form>
-          )}
         </div>
       </DialogContent>
+
+      {showDecline && event?.id && (
+        <DeclineModal
+          meetingId={event.id}
+          open={showDecline}
+          onOpenChange={(o) => {
+            if (!o) setShowDecline(false);
+          }}
+          onSuccess={() => {
+            onOpenChange(false);
+            window.location.reload();
+          }}
+        />
+      )}
     </Dialog>
   );
 }

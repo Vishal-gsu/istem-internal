@@ -20,8 +20,11 @@ export default function ProjectImportPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    fetch("/api/org-members", { credentials: "include" })
-      .then(r => r.json())
+    fetch("/sync/api/org-members", { credentials: "include" })
+      .then(r => {
+        if (!r.ok) throw new Error("Failed to fetch teams");
+        return r.json();
+      })
       .then(data => {
         if (Array.isArray(data)) {
           const mapped = data.map((u: any) => ({
@@ -90,7 +93,7 @@ Output exactly this JSON format. Do not include markdown code blocks, just raw J
       const parsed = JSON.parse(jsonInput);
       
       // Step 1: Create the Project (MeetingEvent with is_project = true)
-      const projRes = await fetch("/api/projects", {
+      const projRes = await fetch("/sync/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -102,7 +105,7 @@ Output exactly this JSON format. Do not include markdown code blocks, just raw J
       // Map temp IDs to real IDs later if needed, but for now we'll just bulk create them without complex DB-level dependency ID resolving (or we can just store the temp IDs in a mapped dictionary).
       // For simplicity in MVP, we just create the tasks sequentially.
       for (const t of parsed.tasks) {
-        await fetch("/api/project-tasks", {
+        await fetch("/sync/api/project-tasks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",

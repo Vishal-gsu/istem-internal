@@ -1,127 +1,163 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Trash2, AlertCircle, Calendar, CheckSquare, Bug } from "lucide-react";
 
 export default function AdminPanelPage() {
-  const [lunchStart, setLunchStart] = useState("12:00");
-  const [lunchEnd, setLunchEnd] = useState("13:00");
-  const [holidays, setHolidays] = useState([
-    { id: 1, name: "New Year's Day", date: "2026-01-01" },
-    { id: 2, name: "Independence Day", date: "2026-07-04" },
-    { id: 3, name: "Company Retreat", date: "2026-08-20" }
-  ]);
-  const [newHolidayName, setNewHolidayName] = useState("");
-  const [newHolidayDate, setNewHolidayDate] = useState("");
-  const [saved, setSaved] = useState(false);
+  const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"meetings" | "tasks" | "issues">("meetings");
+  const [data, setData] = useState<any[]>([]);
+  const [error, setError] = useState("");
 
-  const handleSave = () => {
-    // In a real app, send this to POST /api/admin/settings
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  // 1. Verify Admin Access
+  useEffect(() => {
+    fetch("/sync/api/admin/check", { credentials: "include" })
+      .then((res) => {
+        if (!res.ok) {
+          router.push("/dashboard");
+          throw new Error("Not authorized");
+        }
+        return res.json();
+      })
+      .then(() => setIsAdmin(true))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [router]);
+
+  // 2. Fetch Data based on active tab
+  const fetchData = () => {
+    if (!isAdmin) return;
+    setLoading(true);
+    fetch(`/sync/api/admin/${activeTab}`, { credentials: "include" })
+      .then((res) => res.json())
+      .then((resData) => {
+        if (Array.isArray(resData)) {
+          setData(resData);
+        } else {
+          setData([]);
+        }
+      })
+      .catch((err) => setError("Failed to fetch data"))
+      .finally(() => setLoading(false));
   };
 
-  const addHoliday = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newHolidayName || !newHolidayDate) return;
-    setHolidays([...holidays, { id: Date.now(), name: newHolidayName, date: newHolidayDate }]);
-    setNewHolidayName("");
-    setNewHolidayDate("");
+  useEffect(() => {
+    fetchData();
+  }, [activeTab, isAdmin]);
+
+  // 3. Delete Record
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to permanently delete this record?")) return;
+    
+    try {
+      const res = await fetch(`/sync/api/admin/${activeTab}/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        fetchData(); // Refresh table
+      } else {
+        alert("Failed to delete record.");
+      }
+    } catch (e) {
+      alert("Error occurred while deleting.");
+    }
   };
 
-  const removeHoliday = (id: number) => {
-    setHolidays(holidays.filter(h => h.id !== id));
-  };
+  if (loading && !isAdmin) {
+    return <div className="p-10 text-center text-muted-foreground">Verifying access...</div>;
+  }
+
+  if (!isAdmin) return null; // Will redirect
 
   return (
-    <div className="max-w-4xl mx-auto pb-12">
+    <div className="mx-auto max-w-6xl pb-12 animate-fade-in">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Admin Settings</h1>
-        <p className="text-slate-500 mt-2">Manage global tenant settings, scheduling rules, and holidays.</p>
+        <h1 className="text-3xl font-display font-bold tracking-tight text-foreground flex items-center gap-2">
+          <AlertCircle className="text-destructive" /> Security Dashboard (Admin)
+        </h1>
+        <p className="mt-2 text-muted-foreground">
+          You have high-level access to delete system records. Please proceed with caution.
+        </p>
       </div>
 
-      <div className="space-y-8">
-        
-        {/* Lunch Hours Settings */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center">
-              <svg className="w-5 h-5 mr-2 text-rust-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              Default Lunch Hours
-            </h2>
-            <p className="text-sm text-slate-500 mt-1">These hours are protected globally when employees check the "Protect Lunch" toggle.</p>
-          </div>
-          <div className="p-6 flex gap-6 items-center">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Start Time</label>
-              <input type="time" className="border-slate-300 rounded-md shadow-sm focus:border-rust-500 focus:ring-rust-500 p-2 border" 
-                value={lunchStart} onChange={(e) => setLunchStart(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">End Time</label>
-              <input type="time" className="border-slate-300 rounded-md shadow-sm focus:border-rust-500 focus:ring-rust-500 p-2 border" 
-                value={lunchEnd} onChange={(e) => setLunchEnd(e.target.value)} />
-            </div>
-          </div>
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-4 mb-6 border-b border-border pb-4">
+        <button
+          onClick={() => setActiveTab("meetings")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+            activeTab === "meetings" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"
+          }`}
+        >
+          <Calendar size={18} /> Meetings
+        </button>
+        <button
+          onClick={() => setActiveTab("tasks")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+            activeTab === "tasks" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"
+          }`}
+        >
+          <CheckSquare size={18} /> Tasks
+        </button>
+        <button
+          onClick={() => setActiveTab("issues")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
+            activeTab === "issues" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"
+          }`}
+        >
+          <Bug size={18} /> Issues
+        </button>
+      </div>
 
-        {/* Holidays Settings */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 flex items-center">
-                <svg className="w-5 h-5 mr-2 text-rust-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                Company Holidays
-              </h2>
-              <p className="text-sm text-slate-500 mt-1">Meeting slots will not be generated on these dates.</p>
-            </div>
-          </div>
-          <div className="p-6">
-            <form onSubmit={addHoliday} className="flex gap-4 mb-6">
-              <input type="text" placeholder="Holiday Name (e.g. Thanksgiving)" className="flex-1 border-slate-300 rounded-md shadow-sm p-2 border text-sm focus:border-rust-500 focus:ring-rust-500" 
-                value={newHolidayName} onChange={e => setNewHolidayName(e.target.value)} />
-              <input type="date" className="border-slate-300 rounded-md shadow-sm p-2 border text-sm focus:border-rust-500 focus:ring-rust-500" 
-                value={newHolidayDate} onChange={e => setNewHolidayDate(e.target.value)} />
-              <button type="submit" className="bg-slate-900 text-white px-4 py-2 rounded-md font-medium text-sm hover:bg-slate-800 transition-colors">Add Date</button>
-            </form>
-
-            <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Holiday Name</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
+      {/* Data Table */}
+      <div className="neu-glass rounded-2xl overflow-hidden border border-border/50">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-secondary/50 text-muted-foreground font-semibold text-xs uppercase">
+              <tr>
+                <th className="px-6 py-4">ID</th>
+                <th className="px-6 py-4">Title / Name</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">Loading...</td>
+                </tr>
+              ) : data.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">No records found.</td>
+                </tr>
+              ) : (
+                data.map((item) => (
+                  <tr key={item.id} className="hover:bg-secondary/20 transition-colors">
+                    <td className="px-6 py-4 font-mono text-muted-foreground">#{item.id}</td>
+                    <td className="px-6 py-4 font-semibold text-foreground">{item.title || item.name || "Untitled"}</td>
+                    <td className="px-6 py-4">
+                      <span className="px-2 py-1 bg-secondary rounded text-xs font-medium uppercase">
+                        {item.status || "Unknown"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="text-destructive hover:bg-destructive/10 p-2 rounded-lg transition-colors inline-flex items-center gap-2"
+                        title="Delete Permanently"
+                      >
+                        <Trash2 size={16} /> <span className="hidden sm:inline text-xs font-bold">Delete</span>
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
-                  {holidays.map(holiday => (
-                    <tr key={holiday.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">{holiday.date}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{holiday.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button onClick={() => removeHoliday(holiday.id)} className="text-red-600 hover:text-red-900">Remove</button>
-                      </td>
-                    </tr>
-                  ))}
-                  {holidays.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="px-6 py-8 text-center text-sm text-slate-500">No holidays defined.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-
-        {/* Global Save Button */}
-        <div className="flex items-center justify-end gap-4">
-          {saved && <span className="text-sm font-medium text-green-600 flex items-center"><svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Settings saved successfully</span>}
-          <button onClick={handleSave} className="bg-rust-700 text-white px-8 py-3 rounded-lg font-bold text-sm shadow-sm hover:bg-rust-800 transition-colors">
-            Save Global Settings
-          </button>
-        </div>
-
       </div>
     </div>
   );

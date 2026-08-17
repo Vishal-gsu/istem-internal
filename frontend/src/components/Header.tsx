@@ -14,13 +14,13 @@ export default function Header() {
   const [snoozeMins, setSnoozeMins] = useState(5);
 
   const handleLogout = () => {
-    window.location.href = "/api/auth/logout";
+    window.location.href = "/sync/api/auth/logout";
   };
 
   const fetchReminders = async () => {
     if (!account?.username) return;
     try {
-      const res = await fetch(`/api/my-reminders?email=${account.username}`, { credentials: "include" });
+      const res = await fetch(`/sync/api/my-reminders?email=${account.username}`, { credentials: "include" });
       if (res.ok) {
         setReminders(await res.json());
       }

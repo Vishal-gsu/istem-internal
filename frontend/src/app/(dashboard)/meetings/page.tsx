@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   CalendarX2,
   Clock,
@@ -10,10 +11,13 @@ import {
   RotateCcw,
   Search,
   Video,
+  Check,
+  X,
 } from "lucide-react";
 import { Reveal } from "@/components/dashboard/Reveal";
 import { useStore } from "@/store/useStore";
 import { useAuth } from "@/components/AuthProvider";
+import { DeclineModal } from "@/components/meetings/DeclineModal";
 
 type Status = "Confirmed" | "Pending" | "Past" | "Cancelled";
 type Bucket = "Upcoming" | "Past" | "Needs Review" | "Cancelled";
@@ -78,14 +82,55 @@ function TimePill({ m }: { m: MeetingUI }) {
   );
 }
 
-function Actions({ m, compact = false }: { m: MeetingUI; compact?: boolean }) {
+function Actions({ m, account, onRefresh, compact = false, onDecline }: { m: MeetingUI; account: any; onRefresh: () => void; compact?: boolean; onDecline?: (id: number) => void }) {
   const upcoming = m.bucket === "Upcoming" || m.bucket === "Needs Review";
+  const router = useRouter();
   if (m.bucket === "Cancelled") {
     return (
-      <button onClick={(e) => { e.stopPropagation(); window.location.href = '/schedule'; }} className="neu-press inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-muted-foreground">
+      <button onClick={(e) => { e.stopPropagation(); router.push(`/schedule?rebook_id=${m.id}`); }} className="neu-press inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-muted-foreground">
         <RotateCcw className="h-4 w-4" /> Rebook
       </button>
     );
+  }
+  if (m.bucket === "Needs Review") {
+    const isVipUser = m.attendees.some((a: any) => a.email?.toLowerCase() === account?.username?.toLowerCase() && a.is_vip);
+    if (isVipUser) {
+      return (
+        <div className={`flex items-center gap-2 ${compact ? "" : "flex-wrap"}`}>
+          <button
+            onClick={async (e) => {
+              e.stopPropagation();
+              await fetch("/sync/api/approve-meeting", {
+                method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                body: JSON.stringify({ meeting_id: parseInt(m.id) })
+              });
+              onRefresh();
+            }}
+            className="neu-press inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-2 text-xs font-semibold text-success"
+          >
+            <Check className="h-3.5 w-3.5" /> Approve
+          </button>
+          <button
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (onDecline) {
+                onDecline(parseInt(m.id));
+              } else {
+                await fetch("/sync/api/decline-meeting", {
+                  method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+                  body: JSON.stringify({ meeting_id: parseInt(m.id) })
+                });
+                onRefresh();
+              }
+            }}
+            className="neu-press inline-flex items-center gap-1.5 rounded-full border border-destructive/40 px-3 py-2 text-xs font-semibold text-destructive"
+          >
+            <X className="h-3.5 w-3.5" /> Decline
+          </button>
+        </div>
+      );
+    }
+    // If not a VIP, just fall through to the normal upcoming buttons
   }
   if (upcoming) {
     return (
@@ -97,7 +142,7 @@ function Actions({ m, compact = false }: { m: MeetingUI; compact?: boolean }) {
         >
           <Video className="h-4 w-4" /> Join Teams
         </button>
-        <button onClick={(e) => { e.stopPropagation(); window.location.href = '/schedule'; }} className="neu-press inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-muted-foreground">
+        <button onClick={(e) => { e.stopPropagation(); router.push(`/schedule?rebook_id=${m.id}`); }} className="neu-press inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-muted-foreground">
           <RotateCcw className="h-4 w-4" /> Reschedule
         </button>
       </div>
@@ -122,24 +167,26 @@ export default function MeetingsPage() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
+  const [declineMeetingId, setDeclineMeetingId] = useState<number | null>(null);
+
+  const fetchMeetings = async () => {
+    try {
+      const userEmail = account?.username || "";
+      const meetingsUrl = userEmail ? `/sync/api/meetings?email=${userEmail}` : "/sync/api/meetings";
+      const res = await fetch(meetingsUrl, { credentials: "include" });
+      if (res.ok) {
+        setMeetings(await res.json());
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchMeetings = async () => {
-      try {
-        const userEmail = account?.username || "";
-        const meetingsUrl = userEmail ? `/api/meetings?email=${userEmail}` : "/api/meetings";
-        const res = await fetch(meetingsUrl, { credentials: "include" });
-        if (res.ok) {
-          setMeetings(await res.json());
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (account) fetchMeetings();
-  }, [account, setMeetings]);
+    fetchMeetings();
+  }, [account]);
 
   const mappedMeetings: MeetingUI[] = useMemo(() => {
     return meetings.map((m: any) => {
@@ -149,7 +196,7 @@ export default function MeetingsPage() {
       let status: Status = "Confirmed";
       let bucket: Bucket = "Upcoming";
 
-      if (m.status.includes("Cancelled")) {
+      if (m.status.includes("Cancelled") || m.status.includes("Declined")) {
         status = "Cancelled";
         bucket = "Cancelled";
       } else if (m.status.includes("Pending")) {
@@ -174,9 +221,12 @@ export default function MeetingsPage() {
         status,
         bucket,
         organizer_email: m.organizer_email,
-        attendees: [
-          { name: account?.name || "VIP User", initials: account?.name?.slice(0, 2).toUpperCase() || "VI", email: account?.username }
-        ],
+        attendees: (m.attendees || []).map((a: any) => ({
+          name: a.email.split("@")[0],
+          initials: a.email.substring(0, 2).toUpperCase(),
+          email: a.email,
+          is_vip: a.is_vip
+        })),
         recording: isPast
       };
     });
@@ -322,7 +372,7 @@ export default function MeetingsPage() {
                     </span>
                   </div>
 
-                  <Actions m={m} />
+                  <Actions m={m} account={account} onRefresh={fetchMeetings} onDecline={setDeclineMeetingId} />
                 </article>
               </Reveal>
             ))}
@@ -349,7 +399,7 @@ export default function MeetingsPage() {
 
                   <div className="flex flex-wrap items-center gap-5">
                     <AvatarStack people={m.attendees} />
-                    <Actions m={m} compact />
+                    <Actions m={m} account={account} onRefresh={fetchMeetings} compact onDecline={setDeclineMeetingId} />
                   </div>
                 </article>
               </Reveal>
@@ -361,6 +411,17 @@ export default function MeetingsPage() {
           meeting={mappedMeetings.find(m => m.id === selectedMeetingId) || null} 
           onClose={() => setSelectedMeetingId(null)} 
         />
+        
+        {declineMeetingId && (
+          <DeclineModal
+            meetingId={declineMeetingId}
+            open={!!declineMeetingId}
+            onOpenChange={(open) => {
+              if (!open) setDeclineMeetingId(null);
+            }}
+            onSuccess={fetchMeetings}
+          />
+        )}
       </main>
     </div>
   );

@@ -26,6 +26,9 @@ export type Task = {
   hardDeadline?: string;
   estimatedHours?: number;
   assignorEmail?: string;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  is_dependency_readonly?: boolean;
 };
 
 export const users: User[] = [

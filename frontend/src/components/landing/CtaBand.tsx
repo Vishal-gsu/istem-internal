@@ -17,13 +17,13 @@ export function CtaBand() {
             <p className="relative mx-auto mt-4 max-w-xl text-sm leading-relaxed text-primary-foreground/85 sm:text-base">
               Sign in with your I-STEM internal account and pick up right where the team left off.
             </p>
-            <button
-              type="button"
+            <a
+              href="/sync/api/auth/login"
               className="group relative mt-9 inline-flex items-center justify-center gap-2 rounded-2xl bg-card px-8 py-4 text-sm font-semibold text-foreground shadow-xl transition-all duration-300 hover:scale-[1.03]"
             >
               Get Started
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
-            </button>
+            </a>
           </div>
         </Reveal>
       </div>

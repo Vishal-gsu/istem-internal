@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronLeft, ChevronRight, Clock, Search, Send, Users, X, CheckCircle2, CalendarDays, Filter } from "lucide-react";
 import { Reveal } from "@/components/dashboard/Reveal";
 import { Combobox } from "@/components/ui/Combobox";
@@ -27,6 +28,17 @@ function Avatar({ initials, size = "h-8 w-8" }: { initials: string; size?: strin
 }
 
 export default function SchedulePage() {
+  return (
+    <Suspense fallback={<div className="p-10">Loading schedule...</div>}>
+      <ScheduleContent />
+    </Suspense>
+  );
+}
+
+function ScheduleContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rebookId = searchParams.get("rebook_id");
   const today = new Date();
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
   const [selected, setSelected] = useState<number | null>(today.getDate());
@@ -39,6 +51,7 @@ export default function SchedulePage() {
   const [query, setQuery] = useState("");
   const [people, setPeople] = useState<Person[]>([]);
   const [attendees, setAttendees] = useState<AttendeeState[]>([]);
+  const [remark, setRemark] = useState("");
   
   const [wizardStep, setWizardStep] = useState<WizardStep>("details");
   const [isSearching, setIsSearching] = useState(false);
@@ -49,8 +62,11 @@ export default function SchedulePage() {
   const [projectId, setProjectId] = useState<string>("none");
 
   useEffect(() => {
-    fetch("/api/org-members", { credentials: "include" })
-      .then(r => r.json())
+    fetch("/sync/api/org-members", { credentials: "include" })
+      .then(r => {
+        if (!r.ok) throw new Error("Failed to fetch org members");
+        return r.json();
+      })
       .then(data => {
         if (Array.isArray(data)) {
           const mapped = data.map((u: any) => ({
@@ -65,8 +81,11 @@ export default function SchedulePage() {
       })
       .catch(console.error);
 
-    fetch("/api/projects", { credentials: "include" })
-      .then(r => r.json())
+    fetch("/sync/api/projects", { credentials: "include" })
+      .then(r => {
+        if (!r.ok) throw new Error("Failed to fetch projects");
+        return r.json();
+      })
       .then(data => {
         if (Array.isArray(data)) {
           setProjects(data);
@@ -74,6 +93,38 @@ export default function SchedulePage() {
       })
       .catch(console.error);
   }, []);
+
+  // Handle Rebook Logic
+  useEffect(() => {
+    if (rebookId && people.length > 0) {
+      fetch(`/sync/api/meetings`, { credentials: "include" })
+        .then(r => {
+          if (!r.ok) throw new Error("Failed to fetch meetings for rebook");
+          return r.json();
+        })
+        .then(data => {
+          const m = data.find((x: any) => String(x.id) === rebookId);
+          if (m) {
+            setTitle(m.title);
+            if (m.duration_minutes) setDuration(m.duration_minutes);
+            
+            // Map old attendees back to state
+            const mappedAttendees = (m.attendees || []).map((a: any) => {
+              const matchedPerson = people.find(p => p.email === a.email);
+              if (matchedPerson) {
+                return { id: matchedPerson.id, is_vip: a.is_vip || false, task: "" };
+              }
+              return null;
+            }).filter(Boolean);
+            
+            if (mappedAttendees.length > 0) {
+              setAttendees(mappedAttendees);
+            }
+          }
+        })
+        .catch(console.error);
+    }
+  }, [rebookId, people]);
 
   const grid = useMemo(() => {
     const first = new Date(cursor.y, cursor.m, 1).getDay();
@@ -110,7 +161,7 @@ export default function SchedulePage() {
         mode: "nearest"
       };
 
-      const res = await fetch("/api/find-meeting-times", {
+      const res = await fetch("/sync/api/find-meeting-times", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -148,10 +199,12 @@ export default function SchedulePage() {
         attendees: attendees.map(a => {
           const p = people.find(x => x.id === a.id);
           return { email: p?.email || "", is_vip: a.is_vip, prep_task: a.task };
-        })
+        }),
+        cancel_meeting_id: rebookId ? parseInt(rebookId, 10) : undefined,
+        remark: remark || undefined
       };
 
-      const res = await fetch("/api/schedule-meeting", {
+      const res = await fetch("/sync/api/schedule-meeting", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -256,27 +309,41 @@ export default function SchedulePage() {
                   </div>
                 </div>
 
-                <div className="xl:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Meeting type
-                  </span>
-                  <div className="mt-3 flex flex-wrap gap-3">
-                    {TYPES.map((t) => {
-                      const active = t === type;
-                      return (
-                        <button
-                          key={t}
-                          onClick={() => setType(t)}
-                          className={`neu-press rounded-full px-6 py-3 text-sm font-semibold transition-all ${
-                            active ? "text-primary-foreground" : "text-muted-foreground"
-                          }`}
-                          style={active ? { background: "var(--gradient-rust)" } : {}}
-                        >
-                          {t}
-                        </button>
-                      );
-                    })}
+                <div className="xl:col-span-2 flex flex-col gap-6">
+                  <div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Meeting type
+                    </span>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      {TYPES.map((t) => {
+                        const active = t === type;
+                        return (
+                          <button
+                            key={t}
+                            onClick={() => setType(t)}
+                            className={`neu-press rounded-full px-6 py-3 text-sm font-semibold transition-all ${
+                              active ? "text-primary-foreground" : "text-muted-foreground"
+                            }`}
+                            style={active ? { background: "var(--gradient-rust)" } : {}}
+                          >
+                            {t}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
+                  
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Remark / Reason (Optional)
+                    </span>
+                    <input
+                      value={remark}
+                      onChange={(e) => setRemark(e.target.value)}
+                      placeholder={rebookId ? "E.g., Client requested reschedule..." : "E.g., Special requirements..."}
+                      className="neu-inset mt-3 w-full rounded-2xl px-5 py-4 text-sm font-medium outline-none transition-shadow placeholder:text-muted-foreground/70 focus:ring-4 focus:ring-primary/40"
+                    />
+                  </label>
                 </div>
               </div>
 
@@ -580,7 +647,7 @@ export default function SchedulePage() {
               
               <div className="flex gap-4">
                 <button
-                  onClick={() => window.location.href = '/dashboard'}
+                  onClick={() => router.push('/dashboard')}
                   className="neu-press px-6 py-3 rounded-2xl text-sm font-bold text-muted-foreground"
                 >
                   Go to Dashboard

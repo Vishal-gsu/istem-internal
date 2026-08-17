@@ -24,7 +24,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/me", { credentials: "include" })
+    fetch("/sync/api/me", { credentials: "include" })
       .then(res => {
         if (!res.ok) throw new Error("Not logged in");
         return res.json();
@@ -35,7 +35,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       })
       .catch(() => {
         // Redirect to backend login
-        window.location.href = "/api/auth/login";
+        window.location.href = "/sync/api/auth/login";
       });
   }, []);
 

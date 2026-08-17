@@ -2,6 +2,16 @@ from sqlalchemy import Boolean, Column, Integer, String, DateTime, ForeignKey, U
 from sqlalchemy.orm import relationship
 from database import Base
 
+class User(Base):
+    __tablename__ = "users"
+
+    email = Column(String, primary_key=True, index=True)
+    name = Column(String)
+    photo_url = Column(String, nullable=True)
+    role = Column(String, default="Standard")
+    created_at = Column(String)
+    last_login = Column(String)
+
 class MeetingEvent(Base):
     __tablename__ = "meeting_events"
 
@@ -14,6 +24,7 @@ class MeetingEvent(Base):
     organizer_email = Column(String, nullable=True)
     is_project = Column(Boolean, default=False)
     project_id = Column(Integer, ForeignKey("meeting_events.id", ondelete="CASCADE"), nullable=True)
+    remark = Column(String, nullable=True)
 
 class AttendeeTask(Base):
     __tablename__ = "attendee_tasks"
@@ -86,12 +97,13 @@ class Issue(Base):
     creator_email = Column(String)
     assigned_to = Column(String, nullable=True)
     created_at = Column(String)
+    task_id = Column(Integer, nullable=True)
 
 class ProjectTask(Base):
     __tablename__ = "project_tasks"
     
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("meeting_events.id", ondelete="CASCADE"), index=True)
+    project_id = Column(Integer, ForeignKey("meeting_events.id", ondelete="CASCADE"), index=True, nullable=True)
     title = Column(String, index=True)
     description = Column(String)
     status = Column(String, default="todo") # tentative, todo, in-progress, blocked, waiting-client, pending_review, done
@@ -103,6 +115,17 @@ class ProjectTask(Base):
     depends_on = Column(String, nullable=True) # comma separated task ids
     weight = Column(Integer, default=1)
     assignor_email = Column(String, nullable=True)
+    source_type = Column(String, nullable=True) # e.g. "issue", "meeting", "manual"
+    source_id = Column(String, nullable=True) # e.g. issue_id or meeting_id
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True)
+    message = Column(String)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(String)
 
 class TaskAssignment(Base):
     __tablename__ = "task_assignments"

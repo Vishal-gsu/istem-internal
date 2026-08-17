@@ -38,7 +38,7 @@ function TasksContent() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const res = await fetch("/api/projects", { credentials: "include" });
+        const res = await fetch("/sync/api/projects", { credentials: "include" });
         if (res.ok) setProjects(await res.json());
       } catch (err) {}
     };
@@ -49,7 +49,7 @@ function TasksContent() {
     const fetchTasks = async () => {
       try {
         const userEmail = account?.username || "";
-        const tasksUrl = userEmail ? `/api/project-tasks?email=${userEmail}` : "/api/project-tasks";
+        const tasksUrl = userEmail ? `/sync/api/project-tasks?email=${userEmail}` : "/sync/api/project-tasks";
         const res = await fetch(tasksUrl, { credentials: "include" });
         if (res.ok) setTasks(await res.json());
       } catch (err) {
@@ -76,7 +76,7 @@ function TasksContent() {
       if (next.estimatedHours !== undefined) payload.estimated_hours = next.estimatedHours;
 
       if (Object.keys(payload).length > 0) {
-        await fetch(`/api/project-tasks/${id}`, {
+        await fetch(`/sync/api/project-tasks/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -181,7 +181,7 @@ function TasksContent() {
             onStatusChange={(id, status) => patch(id, { status })}
             onCreateTask={async (task) => {
               try {
-                const res = await fetch("/api/tasks", {
+                const res = await fetch("/sync/api/tasks", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   credentials: "include",
@@ -219,7 +219,7 @@ function TasksContent() {
             tasks={tasks}
             onCreate={async (task) => {
               try {
-                const res = await fetch("/api/tasks", {
+                const res = await fetch("/sync/api/project-tasks", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   credentials: "include",
@@ -228,12 +228,13 @@ function TasksContent() {
                     description: task.description,
                     status: task.status,
                     priority: task.priority,
-                    assigneeIds: task.assigneeIds,
-                    start: task.start,
-                    due: task.due,
-                    dependsOn: task.dependsOn,
-                    parentId: task.parentId,
-                    weight: task.weight
+                    assignees: task.assigneeIds,
+                    start_date: task.start,
+                    target_date: task.due,
+                    hard_deadline: task.due,
+                    depends_on: task.dependsOn,
+                    weight: task.weight,
+                    project_id: selectedProjectId !== "all" ? parseInt(selectedProjectId) : null
                   })
                 });
                 if (res.ok) {

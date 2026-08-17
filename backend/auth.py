@@ -24,3 +24,18 @@ def get_current_user(request: Request):
         "token": token,
         "username": user.get("preferred_username") or user.get("email") or user.get("name", "unknown")
     }
+
+def get_current_admin(request: Request):
+    user_data = get_current_user(request)
+    email = user_data["username"].lower()
+    
+    admin_emails_str = os.getenv("ADMIN_EMAILS", "")
+    admin_emails = [e.strip().lower() for e in admin_emails_str.split(",") if e.strip()]
+    
+    if email not in admin_emails:
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden: Admin access required"
+        )
+        
+    return user_data

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Menu, X, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const loggedOutLinks = [
@@ -27,7 +28,7 @@ export function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    fetch("/api/me", { credentials: "include" })
+    fetch("/sync/api/me", { credentials: "include" })
       .then(res => {
         if (res.ok) setIsLoggedIn(true);
       })
@@ -38,14 +39,14 @@ export function Header() {
     if (isLoggedIn) {
       window.location.href = "/dashboard";
     } else {
-      window.location.href = "/api/auth/login";
+      window.location.href = "/sync/api/auth/login";
     }
   };
 
   const [pendingInvites, setPendingInvites] = useState<any[]>([]);
   useEffect(() => {
     if (isLoggedIn) {
-      fetch("/api/projects/invites/pending", { credentials: "include" })
+      fetch("/sync/api/projects/invites/pending", { credentials: "include" })
         .then(res => {
           if (res.ok) return res.json();
           return [];
@@ -76,7 +77,7 @@ export function Header() {
             scrolled ? "neu-glass" : "bg-transparent",
           )}
         >
-          <a href="/" className="flex min-w-0 items-center gap-3">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-md">
               <Sparkles size={18} />
             </span>
@@ -88,24 +89,24 @@ export function Header() {
                 Internal
               </span>
             </span>
-          </a>
+          </Link>
 
           <nav className="hidden items-center gap-1 lg:flex">
             {(isLoggedIn ? loggedInLinks : loggedOutLinks).map((link) => (
-              <a
+              <Link
                 key={link.label}
                 href={link.href}
                 className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
           </nav>
 
           <div className="hidden items-center gap-3 md:flex">
             {isLoggedIn ? (
               <>
-                <a
+                <Link
                   href="/dashboard"
                   className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl neu-raised text-muted-foreground hover:text-foreground transition-all"
                 >
@@ -115,9 +116,9 @@ export function Header() {
                       {pendingInvites.length}
                     </span>
                   )}
-                </a>
+                </Link>
                 <a
-                  href="/api/auth/logout"
+                  href="/sync/api/auth/logout"
                   className="rounded-xl neu-inset px-4 py-2 text-sm font-semibold text-muted-foreground transition-all duration-200 hover:text-foreground"
                 >
                   Logout
@@ -157,20 +158,20 @@ export function Header() {
           <div className="mt-2 animate-fade-in rounded-2xl neu-glass p-4 md:hidden">
             <nav className="flex flex-col">
               {(isLoggedIn ? loggedInLinks : loggedOutLinks).map((link) => (
-                <a
+                <Link
                   key={link.label}
                   href={link.href}
                   onClick={() => setOpen(false)}
                   className="rounded-lg px-3 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 >
                   {link.label}
-                </a>
+                </Link>
               ))}
             </nav>
             <div className="mt-3 grid grid-cols-1 gap-3">
               {isLoggedIn ? (
                 <a
-                  href="/api/auth/logout"
+                  href="/sync/api/auth/logout"
                   className="rounded-xl neu-inset px-4 py-2.5 text-center text-sm font-semibold text-muted-foreground hover:text-foreground"
                 >
                   Logout

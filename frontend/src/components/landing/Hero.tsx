@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarDays, CheckCircle2, BellRing, Clock } from "lucide-react";
+import { ArrowRight, CalendarDays, CheckCircle2, BellRing, Clock, KanbanSquare, Users } from "lucide-react";
 import { Reveal } from "./Reveal";
 
 export function Hero() {
@@ -23,7 +23,7 @@ export function Hero() {
 
           <Reveal delay={80}>
             <h1 className="mt-6 font-display text-[clamp(2.4rem,6vw,4.25rem)] font-extrabold leading-[1.02] tracking-tight text-foreground">
-              Master Your Schedule with{" "}
+              The unified workspace for{" "}
               <span className="whitespace-nowrap bg-linear-to-r from-rust-deep via-primary to-rust-soft bg-clip-text text-transparent">
                 I-STEM
               </span>
@@ -32,15 +32,15 @@ export function Hero() {
 
           <Reveal delay={160}>
             <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              The internal hub for meetings, tasks, and VIP approvals. Plan the week, run the room,
-              and clear sign-offs — all from one calm, connected workspace.
+              Manage projects, track issues, schedule meetings, and run your team from one unified hub.
+              Plan the week, run the room, and clear sign-offs — all from one calm, connected workspace.
             </p>
           </Reveal>
 
           <Reveal delay={240}>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
               <a
-                href="/api/auth/login"
+                href="/sync/api/auth/login"
                 className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-7 py-4 text-sm font-semibold text-primary-foreground shadow-xl shadow-primary/25 transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl hover:shadow-primary/35"
               >
                 Get Started
@@ -58,8 +58,8 @@ export function Hero() {
           <Reveal delay={320}>
             <dl className="mt-12 grid max-w-lg grid-cols-3 gap-4">
               {[
-                { k: "1.2k", v: "Meetings / mo" },
-                { k: "98%", v: "On-time tasks" },
+                { k: "10+", v: "Active Modules" },
+                { k: "100%", v: "Integrated" },
                 { k: "4h", v: "Saved weekly" },
               ].map((s) => (
                 <div key={s.v} className="rounded-2xl neu-raised px-4 py-4">
@@ -73,6 +73,22 @@ export function Hero() {
 
         <Reveal delay={200} className="min-w-0">
           <div className="relative mx-auto w-full max-w-lg lg:max-w-none">
+            
+            <div className="absolute -top-10 -left-6 z-10 w-64 rounded-2xl neu-glass p-4 hidden sm:block">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <KanbanSquare size={16} />
+                </span>
+                <div>
+                  <p className="text-xs font-bold text-foreground">Website Revamp</p>
+                  <p className="text-[10px] text-muted-foreground">3 Active Issues</p>
+                </div>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                <div className="h-full bg-primary w-2/3" />
+              </div>
+            </div>
+
             <div className="float-slow rounded-[2rem] neu-raised p-5 sm:p-7">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -134,6 +150,18 @@ export function Hero() {
               <BellRing size={16} className="text-primary" />
               <p className="text-xs font-semibold text-foreground">Reminder in 10m</p>
             </div>
+            
+            <div className="absolute -right-4 bottom-10 flex flex-col gap-2 rounded-2xl neu-glass px-4 py-3 sm:-right-10 hidden sm:flex">
+              <div className="flex -space-x-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-7 w-7 rounded-full bg-secondary border-2 border-card flex items-center justify-center">
+                    <Users size={12} className="text-muted-foreground" />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] font-semibold text-foreground">Team active</p>
+            </div>
+
           </div>
         </Reveal>
       </div>

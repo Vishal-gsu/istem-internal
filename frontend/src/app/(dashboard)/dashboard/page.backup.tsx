@@ -22,9 +22,9 @@ export default function Dashboard() {
     const fetchData = async () => {
       try {
         const userEmail = account?.username || "";
-        const tasksUrl = userEmail ? `/api/tasks?email=${userEmail}` : "/api/tasks";
-        const meetingsUrl = userEmail ? `/api/meetings?email=${userEmail}` : "/api/meetings";
-        const approvalsUrl = userEmail ? `/api/pending-approvals?email=${userEmail}` : null;
+        const tasksUrl = userEmail ? `/sync/api/tasks?email=${userEmail}` : "/sync/api/tasks";
+        const meetingsUrl = userEmail ? `/sync/api/meetings?email=${userEmail}` : "/sync/api/meetings";
+        const approvalsUrl = userEmail ? `/sync/api/pending-approvals?email=${userEmail}` : null;
 
         const [tasksRes, meetingsRes] = await Promise.all([
           fetch(tasksUrl, { credentials: "include" }),
@@ -53,7 +53,7 @@ export default function Dashboard() {
     e.preventDefault();
     if (!newTaskTitle.trim() || !account?.username) return;
     try {
-      const response = await fetch("/api/tasks", {
+      const response = await fetch("/sync/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -66,7 +66,7 @@ export default function Dashboard() {
       if (response.ok) {
         setNewTaskTitle("");
         setIsAddingTask(false);
-        const tasksRes = await fetch(`/api/tasks?email=${account.username}`, { credentials: "include" });
+        const tasksRes = await fetch(`/sync/api/tasks?email=${account.username}`, { credentials: "include" });
         setTasks(await tasksRes.json());
       }
     } catch (err) {
@@ -82,7 +82,7 @@ export default function Dashboard() {
     const id = parseInt(e.dataTransfer.getData("taskId"));
     updateTaskStatus(id, status);
     try {
-      await fetch(`/api/tasks/${id}/status`, {
+      await fetch(`/sync/api/tasks/${id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -109,7 +109,7 @@ export default function Dashboard() {
 
   const handleApprove = async (id: number) => {
     try {
-      await fetch("/api/approve-meeting", {
+      await fetch("/sync/api/approve-meeting", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -118,10 +118,10 @@ export default function Dashboard() {
         body: JSON.stringify({ meeting_id: id })
       });
       // Refresh Data
-      const appRes = await fetch(`/api/pending-approvals?email=${account?.username}`, { credentials: "include" });
+      const appRes = await fetch(`/sync/api/pending-approvals?email=${account?.username}`, { credentials: "include" });
       if (appRes.ok) setPendingMeetings(await appRes.json());
 
-      const meetingsRes = await fetch(`/api/meetings?email=${account?.username}`, { credentials: "include" });
+      const meetingsRes = await fetch(`/sync/api/meetings?email=${account?.username}`, { credentials: "include" });
       if (meetingsRes.ok) setMeetings(await meetingsRes.json());
 
     } catch (err) {
@@ -339,7 +339,7 @@ export default function Dashboard() {
                     value={selectedTask.status}
                     onChange={(e) => {
                       updateTaskStatus(selectedTask.id, e.target.value);
-                      fetch(`/api/tasks/${selectedTask.id}/status`, {
+                      fetch(`/sync/api/tasks/${selectedTask.id}/status`, {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         credentials: "include",

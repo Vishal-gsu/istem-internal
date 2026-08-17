@@ -1,26 +1,26 @@
-import { KanbanSquare, Video, BellRing, ShieldCheck } from "lucide-react";
+import { KanbanSquare, Video, CalendarDays, Users } from "lucide-react";
 import { Reveal } from "./Reveal";
 
 const features = [
   {
     icon: KanbanSquare,
-    title: "Kanban Tasks",
-    body: "Drag work across clear stages, assign owners, and keep every deliverable visible to the whole team.",
+    title: "Projects & Issues",
+    body: "Track milestones, manage tasks, and organize team issues with intuitive Kanban boards.",
+  },
+  {
+    icon: CalendarDays,
+    title: "Calendar & Schedule",
+    body: "A unified timeline for all tasks, meetings, and team events, keeping everyone synced.",
   },
   {
     icon: Video,
     title: "Meeting Hub",
-    body: "Agendas, rooms, notes, and follow-ups live in one place, linked to the people who own them.",
+    body: "Run focused sessions with agendas, take live notes, and track follow-ups directly in the hub.",
   },
   {
-    icon: BellRing,
-    title: "Automated Reminders",
-    body: "Smart nudges before deadlines and standups, so nothing slips through the cracks again.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "VIP Approvals",
-    body: "Route sensitive requests to the right desk with an audited, single-tap sign-off trail.",
+    icon: Users,
+    title: "Team & Admin",
+    body: "Manage members securely, control access levels, and handle team approvals smoothly.",
   },
 ];
 

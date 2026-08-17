@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { X, MessageSquare, Clock, User, Calendar } from "lucide-react";
 import { ChatWidget } from "@/components/team/ChatWidget";
@@ -124,6 +125,7 @@ function DailyTimeline({ blocks }: { blocks: BusyBlock[] }) {
 
 export default function TeamPage() {
   const { user: account } = useAuth();
+  const router = useRouter();
   const [members, setMembers] = useState<OrgMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,7 +139,7 @@ export default function TeamPage() {
     const fetchMembers = async () => {
       try {
         if (!account) return;
-        const apiResponse = await fetch("/api/org-members", { credentials: "include" });
+        const apiResponse = await fetch("/sync/api/org-members", { credentials: "include" });
         if (!apiResponse.ok) throw new Error("Failed to fetch members");
         const data = await apiResponse.json();
         setMembers(data);
@@ -156,8 +158,11 @@ export default function TeamPage() {
       if (!email) return;
       
       setLoadingAvailability(true);
-      fetch(`/api/members/${email}/availability`)
-        .then(res => res.json())
+      fetch(`/sync/api/members/${email}/availability`)
+        .then(res => {
+          if (!res.ok) throw new Error("Failed to fetch availability");
+          return res.json();
+        })
         .then(data => setBusyBlocks(data || []))
         .catch(console.error)
         .finally(() => setLoadingAvailability(false));
@@ -257,7 +262,7 @@ export default function TeamPage() {
                 <MessageSquare className="size-4" /> Chat on Teams
               </button>
               <button 
-                onClick={() => window.location.href = "/schedule"}
+                onClick={() => router.push("/schedule")}
                 className="flex-1 neu-press inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-bold text-muted-foreground hover:text-foreground bg-white"
               >
                 <Calendar className="size-4" /> Schedule Meeting

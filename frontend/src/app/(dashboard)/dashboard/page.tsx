@@ -11,10 +11,13 @@ import {
   Check,
   X,
   ArrowUpRight,
+  MessageSquare,
 } from "lucide-react";
 import { Reveal } from "@/components/dashboard/Reveal";
+import { DeclineModal } from "@/components/meetings/DeclineModal";
 import { useStore } from "@/store/useStore";
 import { useAuth } from "@/components/AuthProvider";
+import { useRouter } from "next/navigation";
 
 function useClock() {
   const [now, setNow] = useState<Date | null>(null);
@@ -29,22 +32,24 @@ function useClock() {
 export default function Dashboard() {
   const now = useClock();
   const { user: account } = useAuth();
+  const router = useRouter();
   const { tasks, meetings, setTasks, setMeetings, updateTaskStatus } = useStore();
   const [loading, setLoading] = useState(true);
   const [pendingMeetings, setPendingMeetings] = useState<any[]>([]);
   const [pendingInvites, setPendingInvites] = useState<any[]>([]);
   const [pendingTasks, setPendingTasks] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const userEmail = account?.username || "";
-        const tasksUrl = userEmail ? `/api/tasks?email=${userEmail}` : "/api/tasks";
-        const meetingsUrl = userEmail ? `/api/meetings?email=${userEmail}` : "/api/meetings";
-        const approvalsUrl = userEmail ? `/api/pending-approvals?email=${userEmail}` : null;
-        const invitesUrl = userEmail ? `/api/projects/invites/pending` : null;
+        const tasksUrl = userEmail ? `/sync/api/tasks?email=${userEmail}` : "/sync/api/tasks";
+        const meetingsUrl = userEmail ? `/sync/api/meetings?email=${userEmail}` : "/sync/api/meetings";
+        const approvalsUrl = userEmail ? `/sync/api/pending-approvals?email=${userEmail}` : null;
+        const invitesUrl = userEmail ? `/sync/api/projects/invites/pending` : null;
 
-        const taskApprovalsUrl = userEmail ? `/api/project-tasks/pending-approvals?email=${userEmail}` : null;
+        const taskApprovalsUrl = userEmail ? `/sync/api/project-tasks/pending-approvals?email=${userEmail}` : null;
 
         const [tasksRes, meetingsRes] = await Promise.all([
           fetch(tasksUrl, { credentials: "include" }),
@@ -68,6 +73,11 @@ export default function Dashboard() {
           const tskRes = await fetch(taskApprovalsUrl, { credentials: "include" });
           if (tskRes.ok) setPendingTasks(await tskRes.json());
         }
+
+        if (userEmail) {
+          const notifsRes = await fetch(`/sync/api/notifications?email=${userEmail}`, { credentials: "include" });
+          if (notifsRes.ok) setNotifications(await notifsRes.json());
+        }
       } catch (err) {
         console.error("Failed to fetch dashboard data", err);
       } finally {
@@ -80,19 +90,31 @@ export default function Dashboard() {
   }, [setTasks, setMeetings, account]);
 
   const [showApprovals, setShowApprovals] = useState(false);
+  const [declineMeetingId, setDeclineMeetingId] = useState<number | null>(null);
 
   const handleApprove = async (id: number) => {
     try {
-      await fetch("/api/approve-meeting", {
+      await fetch("/sync/api/approve-meeting", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ meeting_id: id })
       });
       // Refresh Data
-      const appRes = await fetch(`/api/pending-approvals?email=${account?.username}`, { credentials: "include" });
+      const appRes = await fetch(`/sync/api/pending-approvals?email=${account?.username}`, { credentials: "include" });
       if (appRes.ok) setPendingMeetings(await appRes.json());
-      const meetingsRes = await fetch(`/api/meetings?email=${account?.username}`, { credentials: "include" });
+      const meetingsRes = await fetch(`/sync/api/meetings?email=${account?.username}`, { credentials: "include" });
+      if (meetingsRes.ok) setMeetings(await meetingsRes.json());
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const refreshMeetings = async () => {
+    try {
+      const appRes = await fetch(`/sync/api/pending-approvals?email=${account?.username}`, { credentials: "include" });
+      if (appRes.ok) setPendingMeetings(await appRes.json());
+      const meetingsRes = await fetch(`/sync/api/meetings?email=${account?.username}`, { credentials: "include" });
       if (meetingsRes.ok) setMeetings(await meetingsRes.json());
     } catch (err) {
       console.error(err);
@@ -101,13 +123,13 @@ export default function Dashboard() {
 
   const handleInvite = async (invite_id: number, status: string) => {
     try {
-      await fetch(`/api/projects/invites/${invite_id}`, {
+      await fetch(`/sync/api/projects/invites/${invite_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ status })
       });
-      const invRes = await fetch(`/api/projects/invites/pending`, { credentials: "include" });
+      const invRes = await fetch(`/sync/api/projects/invites/pending`, { credentials: "include" });
       if (invRes.ok) setPendingInvites(await invRes.json());
     } catch (err) {
       console.error(err);
@@ -118,7 +140,7 @@ export default function Dashboard() {
     const newStatus = currentStatus === "done" ? "todo" : "done";
     updateTaskStatus(id, newStatus);
     try {
-      await fetch(`/api/tasks/${id}/status`, {
+      await fetch(`/sync/api/tasks/${id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -147,15 +169,15 @@ export default function Dashboard() {
 
   const handleTaskApprove = async (task_id: number) => {
     try {
-      await fetch(`/api/project-tasks/${task_id}/approve`, {
+      await fetch(`/sync/api/project-tasks/${task_id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include"
       });
-      const tskRes = await fetch(`/api/project-tasks/pending-approvals?email=${account?.username}`, { credentials: "include" });
+      const tskRes = await fetch(`/sync/api/project-tasks/pending-approvals?email=${account?.username}`, { credentials: "include" });
       if (tskRes.ok) setPendingTasks(await tskRes.json());
       
-      const tasksRes = await fetch(`/api/tasks?email=${account?.username}`, { credentials: "include" });
+      const tasksRes = await fetch(`/sync/api/tasks?email=${account?.username}`, { credentials: "include" });
       if (tasksRes.ok) setTasks(await tasksRes.json());
     } catch (err) {
       console.error(err);
@@ -232,7 +254,7 @@ export default function Dashboard() {
                     if (s.label === "Pending Approvals") {
                       setShowApprovals(true);
                     } else {
-                      window.location.href = href;
+                      router.push(href);
                     }
                   }}
                   className="neu-raised group h-full rounded-3xl p-6 transition-transform duration-300 hover:-translate-y-1 cursor-pointer"
@@ -279,7 +301,7 @@ export default function Dashboard() {
                       className="neu-inset rounded-2xl p-4 sm:p-5 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
                       onClick={(e) => {
                         if ((e.target as HTMLElement).closest('button')) return;
-                        window.location.href = '/calendar';
+                        router.push('/calendar');
                       }}
                     >
                       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
@@ -313,7 +335,7 @@ export default function Dashboard() {
                             <Video className="h-3.5 w-3.5" /> Join Teams
                           </button>
                           <button 
-                            onClick={(e) => { e.stopPropagation(); window.location.href = '/calendar'; }} 
+                            onClick={(e) => { e.stopPropagation(); router.push('/calendar'); }} 
                             className="neu-press inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
                           >
                             <ArrowUpRight className="h-3.5 w-3.5" /> Details
@@ -373,7 +395,7 @@ export default function Dashboard() {
                         <button onClick={() => handleApprove(a.id)} className="neu-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-success/15 px-3 py-2 text-xs font-semibold text-success">
                           <Check className="h-3.5 w-3.5" /> Approve
                         </button>
-                        <button className="neu-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-destructive/40 px-3 py-2 text-xs font-semibold text-destructive">
+                        <button onClick={() => setDeclineMeetingId(a.id)} className="neu-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-destructive/40 px-3 py-2 text-xs font-semibold text-destructive">
                           <X className="h-3.5 w-3.5" /> Decline
                         </button>
                       </div>
@@ -432,6 +454,51 @@ export default function Dashboard() {
                 </ul>
               </section>
             </Reveal>
+            
+            {/* Notifications Inbox */}
+            <Reveal delay={250}>
+              <section className="neu-raised rounded-3xl p-5 sm:p-7 mt-6">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                  <h2 className="truncate text-xl font-bold flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-primary" /> Inbox
+                  </h2>
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums bg-primary/10 text-primary px-3 py-1 rounded-full font-bold">
+                    {notifications.filter(n => !n.is_read).length} New
+                  </span>
+                </div>
+
+                <ul className="mt-5 space-y-3">
+                  {notifications.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">You're all caught up!</p>
+                  )}
+                  {notifications.map((n: any) => (
+                    <li key={n.id}>
+                      <div className={`neu-inset flex w-full flex-col gap-2 rounded-2xl p-4 text-left transition-colors ${!n.is_read ? 'border-l-4 border-primary bg-primary/5' : ''}`}>
+                        <div className="flex justify-between items-start">
+                          <p className={`text-sm ${!n.is_read ? 'font-bold' : 'font-medium text-muted-foreground'}`}>
+                            {n.message}
+                          </p>
+                          {!n.is_read && (
+                            <button
+                              onClick={async () => {
+                                await fetch(`/sync/api/notifications/${n.id}/read`, { method: "PUT", credentials: "include" });
+                                setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
+                              }}
+                              className="text-[10px] uppercase font-bold text-primary hover:underline shrink-0 ml-4"
+                            >
+                              Mark Read
+                            </button>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground font-medium">
+                          {new Date(n.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </Reveal>
           </div>
         </div>
       </div>
@@ -484,7 +551,7 @@ export default function Dashboard() {
                             </div>
                             <div className="flex gap-2">
                               <button onClick={() => handleApprove(m.id)} className="neu-press flex-1 rounded-xl bg-primary py-2 text-xs font-bold text-primary-foreground">Accept</button>
-                              <button className="neu-press flex-1 rounded-xl border border-destructive/30 py-2 text-xs font-bold text-destructive">Decline</button>
+                              <button onClick={() => setDeclineMeetingId(m.id)} className="neu-press flex-1 rounded-xl border border-destructive/30 py-2 text-xs font-bold text-destructive">Decline</button>
                             </div>
                           </li>
                         ))}
@@ -516,6 +583,16 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+      {declineMeetingId && (
+        <DeclineModal
+          meetingId={declineMeetingId}
+          open={!!declineMeetingId}
+          onOpenChange={(open) => {
+            if (!open) setDeclineMeetingId(null);
+          }}
+          onSuccess={refreshMeetings}
+        />
       )}
     </div>
   );

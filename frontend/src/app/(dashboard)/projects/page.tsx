@@ -27,7 +27,7 @@ export default function ProjectsPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch("/api/projects", { credentials: "include" });
+      const res = await fetch("/sync/api/projects", { credentials: "include" });
       if (res.ok) {
         setProjects(await res.json());
       }
