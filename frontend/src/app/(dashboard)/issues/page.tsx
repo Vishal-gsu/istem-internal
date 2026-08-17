@@ -17,6 +17,7 @@ type Issue = {
   creator_email: string;
   assigned_to: string | null;
   created_at: string;
+  task_id?: number | null;
 };
 
 export default function IssuesPage() {
