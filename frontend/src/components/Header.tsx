@@ -14,13 +14,13 @@ export default function Header() {
   const [snoozeMins, setSnoozeMins] = useState(5);
 
   const handleLogout = () => {
-    window.location.href = "/sync/api/auth/logout";
+    window.location.href = `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/auth/logout`;
   };
 
   const fetchReminders = async () => {
     if (!account?.username) return;
     try {
-      const res = await fetch(`/sync/api/my-reminders?email=${account.username}`, { credentials: "include" });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/my-reminders?email=${account.username}`, { credentials: "include" });
       if (res.ok) {
         setReminders(await res.json());
       }
@@ -70,10 +70,7 @@ export default function Header() {
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
-          <div className="hidden md:flex w-8 h-8 bg-rust-100 text-rust-700 rounded-lg items-center justify-center">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-          </div>
-          <h1 className="text-xl font-bold tracking-tight">I-STEM</h1>
+          <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || '/sync'}/logo.png`} alt="I-STEM Logo" className="h-8 w-auto object-contain" />
         </div>
         
         <div className="ml-auto flex items-center gap-4 relative">

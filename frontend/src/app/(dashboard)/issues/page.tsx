@@ -36,7 +36,7 @@ export default function IssuesPage() {
 
   const fetchIssues = async () => {
     try {
-      const res = await fetch("/sync/api/issues", { credentials: "include" });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/issues`, { credentials: "include" });
       if (res.ok) setIssues(await res.json());
     } catch (err) {
       console.error(err);
@@ -48,7 +48,7 @@ export default function IssuesPage() {
   useEffect(() => {
     if (account) {
       fetchIssues();
-      fetch("/sync/api/org-members", { credentials: "include" })
+      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/org-members`, { credentials: "include" })
         .then(res => res.json())
         .then(data => setMembers(data))
         .catch(console.error);
@@ -58,7 +58,7 @@ export default function IssuesPage() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/sync/api/issues", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/issues`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -82,7 +82,7 @@ export default function IssuesPage() {
 
   const convertToTask = async (issue: Issue) => {
     try {
-      const res = await fetch("/sync/api/project-tasks", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/project-tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -101,7 +101,7 @@ export default function IssuesPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.task_id) {
-          await fetch(`/sync/api/issues/${issue.id}/link-task`, {
+          await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/issues/${issue.id}/link-task`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             credentials: "include",

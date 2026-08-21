@@ -44,12 +44,12 @@ export default function Dashboard() {
     const fetchData = async () => {
       try {
         const userEmail = account?.username || "";
-        const tasksUrl = userEmail ? `/sync/api/tasks?email=${userEmail}` : "/sync/api/tasks";
-        const meetingsUrl = userEmail ? `/sync/api/meetings?email=${userEmail}` : "/sync/api/meetings";
-        const approvalsUrl = userEmail ? `/sync/api/pending-approvals?email=${userEmail}` : null;
-        const invitesUrl = userEmail ? `/sync/api/projects/invites/pending` : null;
+        const tasksUrl = userEmail ? `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/tasks?email=${userEmail}` : `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/tasks`;
+        const meetingsUrl = userEmail ? `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings?email=${userEmail}` : `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings`;
+        const approvalsUrl = userEmail ? `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/pending-approvals?email=${userEmail}` : null;
+        const invitesUrl = userEmail ? `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/projects/invites/pending` : null;
 
-        const taskApprovalsUrl = userEmail ? `/sync/api/project-tasks/pending-approvals?email=${userEmail}` : null;
+        const taskApprovalsUrl = userEmail ? `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/project-tasks/pending-approvals?email=${userEmail}` : null;
 
         const [tasksRes, meetingsRes] = await Promise.all([
           fetch(tasksUrl, { credentials: "include" }),
@@ -75,7 +75,7 @@ export default function Dashboard() {
         }
 
         if (userEmail) {
-          const notifsRes = await fetch(`/sync/api/notifications?email=${userEmail}`, { credentials: "include" });
+          const notifsRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/notifications?email=${userEmail}`, { credentials: "include" });
           if (notifsRes.ok) setNotifications(await notifsRes.json());
         }
       } catch (err) {
@@ -94,16 +94,16 @@ export default function Dashboard() {
 
   const handleApprove = async (id: number) => {
     try {
-      await fetch("/sync/api/approve-meeting", {
+      await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/approve-meeting`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ meeting_id: id })
       });
       // Refresh Data
-      const appRes = await fetch(`/sync/api/pending-approvals?email=${account?.username}`, { credentials: "include" });
+      const appRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/pending-approvals?email=${account?.username}`, { credentials: "include" });
       if (appRes.ok) setPendingMeetings(await appRes.json());
-      const meetingsRes = await fetch(`/sync/api/meetings?email=${account?.username}`, { credentials: "include" });
+      const meetingsRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings?email=${account?.username}`, { credentials: "include" });
       if (meetingsRes.ok) setMeetings(await meetingsRes.json());
     } catch (err) {
       console.error(err);
@@ -112,9 +112,9 @@ export default function Dashboard() {
 
   const refreshMeetings = async () => {
     try {
-      const appRes = await fetch(`/sync/api/pending-approvals?email=${account?.username}`, { credentials: "include" });
+      const appRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/pending-approvals?email=${account?.username}`, { credentials: "include" });
       if (appRes.ok) setPendingMeetings(await appRes.json());
-      const meetingsRes = await fetch(`/sync/api/meetings?email=${account?.username}`, { credentials: "include" });
+      const meetingsRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings?email=${account?.username}`, { credentials: "include" });
       if (meetingsRes.ok) setMeetings(await meetingsRes.json());
     } catch (err) {
       console.error(err);
@@ -123,13 +123,13 @@ export default function Dashboard() {
 
   const handleInvite = async (invite_id: number, status: string) => {
     try {
-      await fetch(`/sync/api/projects/invites/${invite_id}`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/projects/invites/${invite_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ status })
       });
-      const invRes = await fetch(`/sync/api/projects/invites/pending`, { credentials: "include" });
+      const invRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/projects/invites/pending`, { credentials: "include" });
       if (invRes.ok) setPendingInvites(await invRes.json());
     } catch (err) {
       console.error(err);
@@ -140,7 +140,7 @@ export default function Dashboard() {
     const newStatus = currentStatus === "done" ? "todo" : "done";
     updateTaskStatus(id, newStatus);
     try {
-      await fetch(`/sync/api/tasks/${id}/status`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/tasks/${id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -169,15 +169,15 @@ export default function Dashboard() {
 
   const handleTaskApprove = async (task_id: number) => {
     try {
-      await fetch(`/sync/api/project-tasks/${task_id}/approve`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/project-tasks/${task_id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include"
       });
-      const tskRes = await fetch(`/sync/api/project-tasks/pending-approvals?email=${account?.username}`, { credentials: "include" });
+      const tskRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/project-tasks/pending-approvals?email=${account?.username}`, { credentials: "include" });
       if (tskRes.ok) setPendingTasks(await tskRes.json());
       
-      const tasksRes = await fetch(`/sync/api/tasks?email=${account?.username}`, { credentials: "include" });
+      const tasksRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/tasks?email=${account?.username}`, { credentials: "include" });
       if (tasksRes.ok) setTasks(await tasksRes.json());
     } catch (err) {
       console.error(err);
@@ -481,7 +481,7 @@ export default function Dashboard() {
                           {!n.is_read && (
                             <button
                               onClick={async () => {
-                                await fetch(`/sync/api/notifications/${n.id}/read`, { method: "PUT", credentials: "include" });
+                                await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/notifications/${n.id}/read`, { method: "PUT", credentials: "include" });
                                 setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
                               }}
                               className="text-[10px] uppercase font-bold text-primary hover:underline shrink-0 ml-4"

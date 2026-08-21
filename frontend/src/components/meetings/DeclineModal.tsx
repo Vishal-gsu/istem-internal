@@ -27,7 +27,7 @@ export function DeclineModal({ meetingId, open, onOpenChange, onSuccess }: Decli
   const handleDecline = async () => {
     setIsSubmitting(true);
     try {
-      const res = await fetch("/sync/api/decline-meeting", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/decline-meeting`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

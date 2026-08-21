@@ -28,7 +28,7 @@ export function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    fetch("/sync/api/me", { credentials: "include" })
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/me`, { credentials: "include" })
       .then(res => {
         if (res.ok) setIsLoggedIn(true);
       })
@@ -39,14 +39,14 @@ export function Header() {
     if (isLoggedIn) {
       window.location.href = "/dashboard";
     } else {
-      window.location.href = "/sync/api/auth/login";
+      window.location.href = `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/auth/login`;
     }
   };
 
   const [pendingInvites, setPendingInvites] = useState<any[]>([]);
   useEffect(() => {
     if (isLoggedIn) {
-      fetch("/sync/api/projects/invites/pending", { credentials: "include" })
+      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/projects/invites/pending`, { credentials: "include" })
         .then(res => {
           if (res.ok) return res.json();
           return [];
@@ -78,17 +78,7 @@ export function Header() {
           )}
         >
           <Link href="/" className="flex min-w-0 items-center gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-md">
-              <Sparkles size={18} />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate font-display text-base font-extrabold tracking-tight text-foreground">
-                I-STEM
-              </span>
-              <span className="block truncate text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                Internal
-              </span>
-            </span>
+            <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || '/sync'}/logo.png`} alt="I-STEM Logo" className="h-10 w-auto object-contain" />
           </Link>
 
           <nav className="hidden items-center gap-1 lg:flex">
@@ -118,7 +108,7 @@ export function Header() {
                   )}
                 </Link>
                 <a
-                  href="/sync/api/auth/logout"
+                  href={`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/auth/logout`}
                   className="rounded-xl neu-inset px-4 py-2 text-sm font-semibold text-muted-foreground transition-all duration-200 hover:text-foreground"
                 >
                   Logout
@@ -171,7 +161,7 @@ export function Header() {
             <div className="mt-3 grid grid-cols-1 gap-3">
               {isLoggedIn ? (
                 <a
-                  href="/sync/api/auth/logout"
+                  href={`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/auth/logout`}
                   className="rounded-xl neu-inset px-4 py-2.5 text-center text-sm font-semibold text-muted-foreground hover:text-foreground"
                 >
                   Logout

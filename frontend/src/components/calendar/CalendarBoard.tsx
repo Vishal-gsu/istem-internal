@@ -33,7 +33,7 @@ export function CalendarBoard() {
     const fetchMeetings = async () => {
       try {
         const userEmail = account?.username || "";
-        const meetingsUrl = userEmail ? `/sync/api/meetings?email=${userEmail}` : "/sync/api/meetings";
+        const meetingsUrl = userEmail ? `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings?email=${userEmail}` : `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings`;
         const res = await fetch(meetingsUrl, { credentials: "include" });
         if (res.ok) {
           setMeetings(await res.json());

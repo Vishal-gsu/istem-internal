@@ -139,7 +139,7 @@ export default function TeamPage() {
     const fetchMembers = async () => {
       try {
         if (!account) return;
-        const apiResponse = await fetch("/sync/api/org-members", { credentials: "include" });
+        const apiResponse = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/org-members`, { credentials: "include" });
         if (!apiResponse.ok) throw new Error("Failed to fetch members");
         const data = await apiResponse.json();
         setMembers(data);
@@ -158,7 +158,7 @@ export default function TeamPage() {
       if (!email) return;
       
       setLoadingAvailability(true);
-      fetch(`/sync/api/members/${email}/availability`)
+      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/members/${email}/availability`)
         .then(res => {
           if (!res.ok) throw new Error("Failed to fetch availability");
           return res.json();

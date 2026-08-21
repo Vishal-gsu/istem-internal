@@ -25,7 +25,7 @@ export function MeetingDetailModal({
   useEffect(() => {
     if (meeting?.id) {
       setLoading(true);
-      fetch(`/sync/api/meetings/${meeting.id}/attendees`)
+      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings/${meeting.id}/attendees`)
         .then((res) => res.json())
         .then((data) => {
           setAttendees(data);
@@ -164,7 +164,7 @@ export function MeetingDetailModal({
                     <button
                       onClick={async () => {
                         try {
-                          await fetch(`/sync/api/meetings/${meeting.id}/cancel`, { method: "PUT" });
+                          await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings/${meeting.id}/cancel`, { method: "PUT" });
                           window.location.reload();
                         } catch (err) {
                           console.error(err);
@@ -203,7 +203,7 @@ export function MeetingDetailModal({
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
                 try {
-                  const endpoint = mode === "rebook" ? `/sync/api/meetings/${meeting.id}/rebook` : `/sync/api/meetings/${meeting.id}/reschedule`;
+                  const endpoint = mode === "rebook" ? `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings/${meeting.id}/rebook` : `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings/${meeting.id}/reschedule`;
                   const method = mode === "rebook" ? "POST" : "PUT";
                   const body: any = {
                     start_time: formData.get("start"),

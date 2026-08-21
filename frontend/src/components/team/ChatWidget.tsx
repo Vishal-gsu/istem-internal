@@ -20,7 +20,7 @@ export function ChatWidget({ email, name, onClose }: { email: string, name: stri
 
   const fetchMessages = async () => {
     try {
-      const res = await fetch(`/sync/api/chat/${email}`, { credentials: "include" });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/chat/${email}`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setMessages(data);
@@ -55,7 +55,7 @@ export function ChatWidget({ email, name, onClose }: { email: string, name: stri
     setMessages(prev => [...prev, { sender: myEmail, content, timestamp: new Date().toISOString() }]);
 
     try {
-      await fetch(`/sync/api/chat/${email}`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/chat/${email}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content }),

@@ -14,7 +14,7 @@ export default function AdminPanelPage() {
 
   // 1. Verify Admin Access
   useEffect(() => {
-    fetch("/sync/api/admin/check", { credentials: "include" })
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/admin/check`, { credentials: "include" })
       .then((res) => {
         if (!res.ok) {
           router.push("/dashboard");
@@ -31,7 +31,7 @@ export default function AdminPanelPage() {
   const fetchData = () => {
     if (!isAdmin) return;
     setLoading(true);
-    fetch(`/sync/api/admin/${activeTab}`, { credentials: "include" })
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/admin/${activeTab}`, { credentials: "include" })
       .then((res) => res.json())
       .then((resData) => {
         if (Array.isArray(resData)) {
@@ -53,7 +53,7 @@ export default function AdminPanelPage() {
     if (!confirm("Are you sure you want to permanently delete this record?")) return;
     
     try {
-      const res = await fetch(`/sync/api/admin/${activeTab}/${id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/admin/${activeTab}/${id}`, {
         method: "DELETE",
         credentials: "include",
       });

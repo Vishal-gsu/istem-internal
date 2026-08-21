@@ -38,7 +38,7 @@ function TasksContent() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const res = await fetch("/sync/api/projects", { credentials: "include" });
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/projects`, { credentials: "include" });
         if (res.ok) setProjects(await res.json());
       } catch (err) {}
     };
@@ -49,7 +49,7 @@ function TasksContent() {
     const fetchTasks = async () => {
       try {
         const userEmail = account?.username || "";
-        const tasksUrl = userEmail ? `/sync/api/project-tasks?email=${userEmail}` : "/sync/api/project-tasks";
+        const tasksUrl = userEmail ? `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/project-tasks?email=${userEmail}` : `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/project-tasks`;
         const res = await fetch(tasksUrl, { credentials: "include" });
         if (res.ok) setTasks(await res.json());
       } catch (err) {
@@ -76,7 +76,7 @@ function TasksContent() {
       if (next.estimatedHours !== undefined) payload.estimated_hours = next.estimatedHours;
 
       if (Object.keys(payload).length > 0) {
-        await fetch(`/sync/api/project-tasks/${id}`, {
+        await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/project-tasks/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -181,7 +181,7 @@ function TasksContent() {
             onStatusChange={(id, status) => patch(id, { status })}
             onCreateTask={async (task) => {
               try {
-                const res = await fetch("/sync/api/tasks", {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/tasks`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   credentials: "include",
@@ -219,7 +219,7 @@ function TasksContent() {
             tasks={tasks}
             onCreate={async (task) => {
               try {
-                const res = await fetch("/sync/api/project-tasks", {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/project-tasks`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   credentials: "include",

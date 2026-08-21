@@ -113,7 +113,7 @@ export function EventDialog({ event, dates, open, onOpenChange }: EventDialogPro
                       onClick={async () => {
                         if (event?.id) {
                           try {
-                            await fetch("/sync/api/approve-meeting", {
+                            await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/approve-meeting`, {
                               method: "POST", headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ meeting_id: parseInt(event.id) })
                             });
@@ -155,7 +155,7 @@ export function EventDialog({ event, dates, open, onOpenChange }: EventDialogPro
                       onClick={async () => {
                         if (event?.id) {
                           try {
-                            await fetch(`/sync/api/meetings/${event.id}/cancel`, { method: "PUT" });
+                            await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings/${event.id}/cancel`, { method: "PUT" });
                             toast.success("Meeting cancelled", {
                               description: "Attendees will be notified.",
                             });

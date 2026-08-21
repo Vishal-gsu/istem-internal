@@ -1,7 +1,19 @@
+"use client";
+import { useEffect, useState } from "react";
 import { ArrowRight, CalendarDays, CheckCircle2, BellRing, Clock, KanbanSquare, Users } from "lucide-react";
 import { Reveal } from "./Reveal";
 
 export function Hero() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/me`, { credentials: "include" })
+      .then(res => {
+        if (res.ok) setIsLoggedIn(true);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <section id="top" className="relative w-full overflow-hidden pt-32 pb-16 sm:pt-40 lg:pb-24">
       <div
@@ -40,10 +52,10 @@ export function Hero() {
           <Reveal delay={240}>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
               <a
-                href="/sync/api/auth/login"
+                href={isLoggedIn ? "/dashboard" : `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/auth/login`}
                 className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-7 py-4 text-sm font-semibold text-primary-foreground shadow-xl shadow-primary/25 transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl hover:shadow-primary/35"
               >
-                Get Started
+                {isLoggedIn ? "Dashboard" : "Get Started"}
                 <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
               </a>
               <button

@@ -18,6 +18,7 @@ import { Reveal } from "@/components/dashboard/Reveal";
 import { useStore } from "@/store/useStore";
 import { useAuth } from "@/components/AuthProvider";
 import { DeclineModal } from "@/components/meetings/DeclineModal";
+import { MeetingDetailModal } from "@/components/meetings/MeetingDetailModal";
 
 type Status = "Confirmed" | "Pending" | "Past" | "Cancelled";
 type Bucket = "Upcoming" | "Past" | "Needs Review" | "Cancelled";
@@ -100,7 +101,7 @@ function Actions({ m, account, onRefresh, compact = false, onDecline }: { m: Mee
           <button
             onClick={async (e) => {
               e.stopPropagation();
-              await fetch("/sync/api/approve-meeting", {
+              await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/approve-meeting`, {
                 method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
                 body: JSON.stringify({ meeting_id: parseInt(m.id) })
               });
@@ -110,43 +111,13 @@ function Actions({ m, account, onRefresh, compact = false, onDecline }: { m: Mee
           >
             <Check className="h-3.5 w-3.5" /> Approve
           </button>
-          <button
-            onClick={async (e) => {
-              e.stopPropagation();
-              if (onDecline) {
-                onDecline(parseInt(m.id));
-              } else {
-                await fetch("/sync/api/decline-meeting", {
-                  method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-                  body: JSON.stringify({ meeting_id: parseInt(m.id) })
-                });
-                onRefresh();
-              }
-            }}
-            className="neu-press inline-flex items-center gap-1.5 rounded-full border border-destructive/40 px-3 py-2 text-xs font-semibold text-destructive"
-          >
-            <X className="h-3.5 w-3.5" /> Decline
-          </button>
-        </div>
-      );
-    }
-    // If not a VIP, just fall through to the normal upcoming buttons
-  }
-  if (upcoming) {
-    return (
-      <div className={`flex items-center gap-2 ${compact ? "" : "flex-wrap"}`}>
-        <button
-          onClick={(e) => { e.stopPropagation(); window.open('https://teams.microsoft.com', '_blank'); }}
-          className="neu-press inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-primary-foreground"
-          style={{ background: "var(--gradient-rust)" }}
-        >
-          <Video className="h-4 w-4" /> Join Teams
-        </button>
+
         <button onClick={(e) => { e.stopPropagation(); router.push(`/schedule?rebook_id=${m.id}`); }} className="neu-press inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-muted-foreground">
           <RotateCcw className="h-4 w-4" /> Reschedule
         </button>
       </div>
     );
+  }
   }
   return (
     <button onClick={(e) => { e.stopPropagation(); alert('Opening details view...'); }} className="neu-press inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-foreground">
@@ -156,7 +127,6 @@ function Actions({ m, account, onRefresh, compact = false, onDecline }: { m: Mee
   );
 }
 
-import { MeetingDetailModal } from "@/components/meetings/MeetingDetailModal";
 
 export default function MeetingsPage() {
   const { user: account } = useAuth();
@@ -172,7 +142,7 @@ export default function MeetingsPage() {
   const fetchMeetings = async () => {
     try {
       const userEmail = account?.username || "";
-      const meetingsUrl = userEmail ? `/sync/api/meetings?email=${userEmail}` : "/sync/api/meetings";
+      const meetingsUrl = userEmail ? `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings?email=${userEmail}` : `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings`;
       const res = await fetch(meetingsUrl, { credentials: "include" });
       if (res.ok) {
         setMeetings(await res.json());

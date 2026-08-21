@@ -13,12 +13,7 @@ export function Footer() {
         <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(3,minmax(0,1fr))]">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
-                <Sparkles size={18} />
-              </span>
-              <span className="truncate font-display text-base font-extrabold tracking-tight text-foreground">
-                I-STEM Internal
-              </span>
+              <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || '/sync'}/logo.png`} alt="I-STEM Logo" className="h-10 w-auto object-contain grayscale opacity-80" />
             </div>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
               Scheduling, meetings, and task management for the I-STEM team.

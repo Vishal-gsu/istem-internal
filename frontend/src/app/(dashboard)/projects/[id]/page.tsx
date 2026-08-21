@@ -42,9 +42,9 @@ export default function ProjectDashboardPage() {
     const fetchDashboardData = async () => {
       try {
         const [projRes, tasksRes, leadRes] = await Promise.all([
-          fetch(`/sync/api/projects/${projectId}`, { credentials: "include" }),
-          fetch(`/sync/api/project-tasks?project_id=${projectId}`, { credentials: "include" }),
-          fetch(`/sync/api/gamification`, { credentials: "include" })
+          fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/projects/${projectId}`, { credentials: "include" }),
+          fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/project-tasks?project_id=${projectId}`, { credentials: "include" }),
+          fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/gamification`, { credentials: "include" })
         ]);
         
         if (projRes.ok) setProject(await projRes.json());
@@ -59,7 +59,7 @@ export default function ProjectDashboardPage() {
     if (account && projectId) {
       fetchDashboardData();
       
-      const evtSource = new EventSource(`/sync/api/projects/${projectId}/stream`);
+      const evtSource = new EventSource(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/projects/${projectId}/stream`);
       evtSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
         setAnnouncements(prev => [data, ...prev]);
@@ -73,7 +73,7 @@ export default function ProjectDashboardPage() {
     if (!newAnnouncement.trim()) return;
     
     try {
-      await fetch(`/sync/api/projects/${projectId}/announcements`, {
+      await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/projects/${projectId}/announcements`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -332,7 +332,7 @@ export default function ProjectDashboardPage() {
                         if (!email) return;
                         
                         try {
-                          await fetch(`/sync/api/projects/${projectId}/invites`, {
+                          await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/projects/${projectId}/invites`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             credentials: "include",

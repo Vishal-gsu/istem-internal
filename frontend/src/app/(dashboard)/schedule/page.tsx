@@ -62,7 +62,7 @@ function ScheduleContent() {
   const [projectId, setProjectId] = useState<string>("none");
 
   useEffect(() => {
-    fetch("/sync/api/org-members", { credentials: "include" })
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/org-members`, { credentials: "include" })
       .then(r => {
         if (!r.ok) throw new Error("Failed to fetch org members");
         return r.json();
@@ -81,7 +81,7 @@ function ScheduleContent() {
       })
       .catch(console.error);
 
-    fetch("/sync/api/projects", { credentials: "include" })
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/projects`, { credentials: "include" })
       .then(r => {
         if (!r.ok) throw new Error("Failed to fetch projects");
         return r.json();
@@ -97,7 +97,7 @@ function ScheduleContent() {
   // Handle Rebook Logic
   useEffect(() => {
     if (rebookId && people.length > 0) {
-      fetch(`/sync/api/meetings`, { credentials: "include" })
+      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/meetings`, { credentials: "include" })
         .then(r => {
           if (!r.ok) throw new Error("Failed to fetch meetings for rebook");
           return r.json();
@@ -161,7 +161,7 @@ function ScheduleContent() {
         mode: "nearest"
       };
 
-      const res = await fetch("/sync/api/find-meeting-times", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/find-meeting-times`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -204,7 +204,7 @@ function ScheduleContent() {
         remark: remark || undefined
       };
 
-      const res = await fetch("/sync/api/schedule-meeting", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/schedule-meeting`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

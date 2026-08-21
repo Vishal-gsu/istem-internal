@@ -1,7 +1,19 @@
+"use client";
+import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { Reveal } from "./Reveal";
 
 export function CtaBand() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/me`, { credentials: "include" })
+      .then(res => {
+        if (res.ok) setIsLoggedIn(true);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <section className="w-full py-16 sm:py-24">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
@@ -18,10 +30,10 @@ export function CtaBand() {
               Sign in with your I-STEM internal account and pick up right where the team left off.
             </p>
             <a
-              href="/sync/api/auth/login"
+              href={isLoggedIn ? "/dashboard" : `${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/auth/login`}
               className="group relative mt-9 inline-flex items-center justify-center gap-2 rounded-2xl bg-card px-8 py-4 text-sm font-semibold text-foreground shadow-xl transition-all duration-300 hover:scale-[1.03]"
             >
-              Get Started
+              {isLoggedIn ? "Dashboard" : "Get Started"}
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
             </a>
           </div>

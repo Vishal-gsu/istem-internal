@@ -51,7 +51,7 @@ export const useStore = create<AppState>((set, get) => ({
   fetchMembers: async () => {
     if (get().members.length > 0) return; // already fetched
     try {
-      const res = await fetch("/sync/api/org-members", { credentials: "include" });
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || '/sync/api'}/org-members`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         const mapped = data.map((m: any) => ({
